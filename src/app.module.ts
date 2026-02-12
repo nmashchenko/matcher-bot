@@ -15,6 +15,7 @@ import { BotModule } from './bot/bot.module';
       useFactory: (configService: ConfigService) => ({
         token: configService.getOrThrow<string>('TELEGRAM_BOT_TOKEN'),
         middlewares: [session()],
+        include: [BotModule],
       }),
     }),
     VerificationModule,

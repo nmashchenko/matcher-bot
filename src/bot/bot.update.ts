@@ -2,7 +2,7 @@ import { Logger } from '@nestjs/common';
 import { Update, Ctx, Start } from 'nestjs-telegraf';
 import { VerificationService } from '../verification/verification.service';
 import { VerificationUpdate } from '../verification/verification.update';
-import { VerificationStatus } from '../../prisma/generated/client';
+import { VerificationStatus } from '../generated/prisma/client';
 import type { BotContext } from './bot-context';
 
 @Update()

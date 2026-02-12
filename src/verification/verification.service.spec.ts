@@ -1,5 +1,5 @@
 // Mock Prisma generated client to avoid ESM import.meta.url issues in Jest
-jest.mock('../../prisma/generated/client', () => ({
+jest.mock('../generated/prisma/client', () => ({
   VerificationStatus: {
     PENDING: 'PENDING',
     VERIFIED: 'VERIFIED',
