@@ -1,0 +1,37 @@
+generator client {
+  provider = "prisma-client"
+  output   = "./generated"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  UNVERIFIED
+  REJECTED
+}
+
+model User {
+  id        String   @id @default(uuid())
+  telegramId BigInt  @unique
+  username   String?
+  firstName  String?
+  lastName   String?
+
+  // Verification
+  verificationStatus VerificationStatus @default(PENDING)
+  latitude           Float?
+  longitude          Float?
+  country            String?
+  state              String?
+  city               String?
+  verifiedAt         DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
