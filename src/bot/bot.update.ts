@@ -1,9 +1,9 @@
 import { Logger } from '@nestjs/common';
 import { Update, Ctx, Start } from 'nestjs-telegraf';
-import { Context } from 'telegraf';
 import { VerificationService } from '../verification/verification.service.js';
 import { VerificationUpdate } from '../verification/verification.update.js';
 import { VerificationStatus } from '../../prisma/generated/client.js';
+import type { BotContext } from './bot-context.js';
 
 @Update()
 export class BotUpdate {
@@ -15,7 +15,7 @@ export class BotUpdate {
   ) {}
 
   @Start()
-  async onStart(@Ctx() ctx: Context) {
+  async onStart(@Ctx() ctx: BotContext) {
     const from = ctx.from;
     if (!from) return;
 

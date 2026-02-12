@@ -1,6 +1,12 @@
 import { Logger } from '@nestjs/common';
 import { Update, Ctx, On, Action, Hears } from 'nestjs-telegraf';
-import { Context, Markup } from 'telegraf';
+import { Markup } from 'telegraf';
+import type {
+  BotContext,
+  LocationContext,
+  TextContext,
+  CallbackQueryContext,
+} from '../bot/bot-context.js';
 import { VerificationService } from './verification.service.js';
 import { US_STATES } from './us-states.js';
 
@@ -10,7 +16,7 @@ export class VerificationUpdate {
 
   constructor(private readonly verificationService: VerificationService) {}
 
-  async sendVerificationPrompt(ctx: Context) {
+  async sendVerificationPrompt(ctx: BotContext) {
     await ctx.reply(
       'Привет! Я — Matcher Bot. Помогу найти интересных людей из СНГ рядом с тобой в США.\n\n' +
         'Для начала мне нужно убедиться, что ты в США. Поделись геолокацией — это одноразово и безопасно.',
@@ -24,19 +30,17 @@ export class VerificationUpdate {
   }
 
   @On('location')
-  async onLocation(@Ctx() ctx: Context) {
+  async onLocation(@Ctx() ctx: LocationContext) {
     const from = ctx.from;
-    if (!from) return;
 
-    const location = (ctx.message as any)?.location;
-    if (!location) return;
+    const { latitude, longitude } = ctx.message.location;
 
     await ctx.reply('⏳ Проверяю твою геолокацию...');
 
     const result = await this.verificationService.verifyByLocation(
       BigInt(from.id),
-      location.latitude,
-      location.longitude,
+      latitude,
+      longitude,
     );
 
     if (result.verified) {
@@ -70,7 +74,7 @@ export class VerificationUpdate {
   }
 
   @Hears('🏙 Выбрать город вручную')
-  async onManualSelect(@Ctx() ctx: Context) {
+  async onManualSelect(@Ctx() ctx: BotContext) {
     const buttons = US_STATES.map((state) =>
       Markup.button.callback(state, `state:${state}`),
     );
@@ -84,19 +88,13 @@ export class VerificationUpdate {
   }
 
   @Action(/^state:(.+)$/)
-  async onStateSelected(@Ctx() ctx: Context) {
-    const from = ctx.from;
-    if (!from) return;
-
-    const callbackQuery = ctx.callbackQuery;
-    if (!callbackQuery || !('data' in callbackQuery)) return;
-
-    const state = callbackQuery.data.replace('state:', '');
+  async onStateSelected(@Ctx() ctx: CallbackQueryContext) {
+    const state = ctx.callbackQuery.data.replace('state:', '');
 
     await ctx.answerCbQuery();
 
-    (ctx as any).session = (ctx as any).session || {};
-    (ctx as any).session.selectedState = state;
+    ctx.session ??= {};
+    ctx.session.selectedState = state;
 
     await ctx.editMessageText(
       `Штат: ${state}\n\nТеперь напиши название своего города:`,
@@ -104,19 +102,16 @@ export class VerificationUpdate {
   }
 
   @On('text')
-  async onText(@Ctx() ctx: Context) {
+  async onText(@Ctx() ctx: TextContext) {
     const from = ctx.from;
-    if (!from) return;
 
-    const text = (ctx.message as any)?.text;
-    if (!text) return;
+    const { text } = ctx.message;
 
-    const session = (ctx as any).session;
-    if (!session?.selectedState) return;
+    if (!ctx.session?.selectedState) return;
 
-    const state = session.selectedState;
+    const state = ctx.session.selectedState;
     const city = text.trim();
-    delete session.selectedState;
+    delete ctx.session.selectedState;
 
     await this.verificationService.verifyManually(BigInt(from.id), state, city);
 
