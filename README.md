@@ -1,98 +1,286 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+## Идея
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Я делаю Telegram-бота для СНГ ребят в США (в основном молодежь), который работает как персональный помощник: он подбирает людей, учится на моих текстовых реакциях (без кнопок), помнит “как шло вчера”, и после лайка/матча сам создает приватный чат на двоих, начинает диалог и через 48 часов удаляет комнату.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+---
 
-## Description
+## Основные цели MVP
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+- Быстрый онбординг и быстрый старт (чтобы не уходили).
+- Персонализация под каждого юзера
+- Матчи не превращаются в вечную переписку: чат на двоих живет **ровно 48 часов** и закрывается всегда.
+- Репутация/рейтинг не тупой, а мотивирует нормальное поведение (не “ловить внимание”, не молчать, не лайкать всех подряд).
+- Матчинг честный: если кто-то кому-то понравился, это не прячем как “секрет за донат” (по крайней мере в базе).
 
-## Project setup
+---
 
-```bash
-$ npm install
-```
+## Начальная валидация геолокации (фильтрация не из США)
 
-## Compile and run the project
+Мне важно, чтобы бот был **для людей, которые реально в США**, иначе будет куча фейков/случайных людей и это превратится в мусор.
 
-```bash
-# development
-$ npm run start
+### Как это работает при первом открытии бота
 
-# watch mode
-$ npm run start:dev
+1. Бот просит **поделиться геолокацией** (одноразово) через стандартную кнопку Telegram “Share location”.
+2. Бот проверяет страну = **United States** и включает пользователя в систему.
+3. Если человек не хочет делиться точкой:
+    - бот предлагает альтернативу: выбрать штат/город вручную,
+    - но аккаунт получает статус “не подтвержден”, и показы/лайки будут ограничены, пока не подтвердит США.
 
-# production mode
-$ npm run start:prod
-```
+### Повторная проверка
 
-## Run tests
+- Периодически (например раз в N дней) бот может мягко попросить обновить подтверждение, если пользователь пропадал надолго или резко сменил “город”.
 
-```bash
-# unit tests
-$ npm run test
+---
 
-# e2e tests
-$ npm run test:e2e
+## Формат работы (асинхронный)
 
-# test coverage
-$ npm run test:cov
-```
+- Я захожу в бота, запускаю подбор.
+- Бот показывает профили по одному (карточкой).
+- Я отвечаю **текстом**, что думаю.
+- Бот понимает: like/pass/maybe/report + причины.
+- Дальше матчинг идет двумя способами (ниже).
 
-## Deployment
+---
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+## Онбординг (быстро, без анкеты на жизнь)
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+Цель: собрать минимум, чтобы сразу персонализировать и фильтровать мусор.
 
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
+1. Город (и район/округ)
+2. Возрастной диапазон
+3. Языки (RU/UA/EN)
+4. Цель: друзья / тусовки / дейтинг / смешанное
+5. Интересы (5–7 тегов)
+6. Несколько “не хочу точно” (1–3 red flags)
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+Финал: “Окей, я запомнил. Показываю подбор.”
 
-## Resources
+---
 
-Check out a few resources that may come in handy when working with NestJS:
+## Карточка профиля (что показываю в MVP)
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+- Фото (1–3)
+- Имя, возраст
+- Город/район
+- Короткое био (1–3 предложения)
+- Интересы (теги)
 
-## Support
+И вопрос от бота: **“Что думаешь?”**
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+Я отвечаю текстом.
 
-## Stay in touch
+---
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+## Текстовые реакции (без кнопок)
 
-## License
+Я могу писать что угодно:
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+- “норм, давай”
+- “не мое”
+- “слишком серьезный, хочу веселее”
+- “слишком флирт”
+- “скучно”
+- “хз, сомневаюсь”
+
+Бот должен:
+
+1. понять действие: like/pass/maybe/report
+2. извлечь причины (теги)
+3. подтвердить одной фразой, что он понял (чтобы я видел, что персонализация работает)
+
+Пример подтверждения:
+
+- “Понял: pass, причина ‘слишком серьезный’. Сдвигаю подбор в сторону более лайтовых.”
+- “Окей: like. Запомнил, что тебе заходит [юмор/спорт/..].”
+
+---
+
+## Персонализация (упрощенная, но ощущается)
+
+Я не “тренирую модель под каждого”. Я делаю так, чтобы бот казался умным:
+
+### Что бот хранит по каждому пользователю
+
+- веса тегов предпочтений (что чаще нравится / что чаще отталкивает)
+- статистику причин отказов (“слишком серьезный”, “нет общих интересов”, “слишком флирт”)
+- динамику настроения/сессии (например, серия отказов)
+- краткое “вчерашнее резюме” (1–2 предложения)
+
+### Как бот использует это
+
+- ранжирует новые профили по совпадению интересов + предпочтений
+- если я часто пишу “скучно/слишком серьезный”, бот уменьшает таких в выдаче
+- если я лайкаю людей с определенным вайбом, бот усиливает похожих
+
+---
+
+## Память “на завтра” + смешные фразы (мягко)
+
+Бот делает опыт живым, потому что помнит вчерашнюю динамику.
+
+### Внутри сессии
+
+Если я подряд отверг много профилей, бот вставляет короткие подколы:
+
+- “Ты сегодня строгий. Понял. Подкручиваю выдачу.”
+- “Окей, у нас режим ‘не впечатлил’. Сейчас попробую точнее.”
+
+### На следующий день (или при первом заходе после паузы)
+
+Бот начинает с контекста:
+
+- “Вчера у нас не задалось. Я убрал часть ‘слишком серьезных’ и добавил больше [юмора/ивентов/..].”
+- “Судя по вчерашним ответам, тебе важнее вайб, чем идеальная анкета. Погнали.”
+
+---
+
+## Варианты матчинга (2 сценария)
+
+Я делаю два пути, чтобы не было “секретов ради секретов”, и чтобы люди быстрее доходили до контакта.
+
+### 1) Классика: взаимный лайк
+
+- Я лайкнул человека.
+- Человек лайкнул меня.
+- Бот фиксирует матч и создает чат на двоих на 48 часов.
+
+### 2) Лайк через “кто тебя лайкнул” (ничего не скрываем)
+
+Если кто-то поставил мне лайк, бот это не прячет. У меня есть режим:
+**“Кто тебя лайкнул”** — бот показывает список/карточки людей, которым я понравился.
+
+Дальше я принимаю решение:
+
+- Если я тоже лайкаю этого человека → сразу матч → создается чат на 48 часов.
+- Если я пасую → просто фиксируется отказ (и это идет в персонализацию).
+
+Важно: “кто тебя лайкнул” показывает именно реальный интерес, а не “слепую выдачу”.
+
+---
+
+## Матч: создание чата на двоих и старт диалога
+
+### Как работает чат
+
+- После матча бот создает приватный чат на двоих (плюс бот).
+- Бот начинает диалог, чтобы не было “привет как дела”.
+- Дальше люди общаются сами.
+- Через **48 часов** бот закрывает и удаляет чат всегда.
+
+### Сценарий ведущего (короткий, 2–4 сообщения)
+
+1. “Йо. Я вас сматчил. Я ведущий только для старта, чтобы не утонуть в ‘как дела’.”
+2. “Каждый: в 1 фразе, какой идеальный вечер в этом городе?”
+3. “Теперь по одному: назови одну штуку, которая тебе реально нравится (еда/музыка/хобби).”
+4. “Окей, вижу пересечение по [X]. Дальше вы сами. Я молчу.”
+
+---
+
+## Рейтинг и бейджи (более разумно и интересно)
+
+Я хочу, чтобы система рейтинга стимулировала нормальное поведение и помогала фильтровать людей.
+
+### Два уровня: “Сигналы качества” + “Поведенческие бейджи”
+
+- **Сигналы качества** (то, что косвенно показывает привлекательность/адекватность)
+- **Поведенческие бейджи** (то, как человек себя ведет в продукте)
+
+### Что я считаю (метрики)
+
+1. **Like Received Rate**: сколько лайков получает профиль на 100 показов
+2. **Like Given Rate**: сколько лайков человек раздает на 100 показов
+3. **Mutual Match Rate**: сколько взаимных из выданных лайков
+4. **Chat Start Rate**: доля матчей, где человек реально зашел в чат/ответил
+5. **Response Rate**: отвечает ли в чате (не молчит ли 48 часов)
+6. **Selectivity Balance**: баланс “получаю много лайков” vs “лайкаю в ответ”
+7. **Consistency**: регулярность активности (не пропадает ли надолго)
+
+### Бейджи (примеры)
+
+### Про баланс внимания
+
+- **“Охотница/охотник за вниманием”**
+    
+    Получает много лайков, почти никого не лайкает в ответ + низкий chat start/response.
+    
+- **“Селективный(ая), но честный(ая)”**
+    
+    Мало лайков раздает, но высокий mutual match rate и нормальный response rate.
+    
+- **“Лайк-машина”**
+    
+    Лайкает слишком много подряд, mutual match rate низкий.
+    
+
+### Про общение
+
+- **“Призрак”**
+    
+    Матчи есть, но часто молчит в чате или вообще не начинает.
+    
+- **“Нормальный коммуникатор”**
+    
+    Стабильно отвечает, чаты не пустые.
+    
+- **“Starter”**
+    
+    Часто начинает и первым отвечает.
+    
+
+### Про качество профиля
+
+- **“Профиль пустой”**
+    
+    Мало инфы. Мотивация заполнить (иначе хуже показывается).
+    
+- **“Профиль понятный”**
+    
+    Био + интересы заполнены, нормальная активность, хороший отклик.
+    
+
+---
+
+## Монетизация (со временем)
+
+Я хочу монетизацию без жести “плати чтобы писать”. Логика простая: в бесплатной версии есть лимиты, а донат (через Telegram Stars или аналог) расширяет возможности.
+
+### Базовые лимиты (Free)
+
+- **Показы профилей в день**: ограничено (например 25–40)
+- **Лайки в день**: ограничено (например 10–20)
+- **“Кто тебя лайкнул”**: базово доступно, но может быть лимит на количество просмотров в день (например 10)
+- **Повторный показ пропущенных**: редко или только 1 раз в сутки
+
+### Платное расширение (Stars / донат)
+
+1. **+Лимиты**
+- +X показов профилей сегодня
+- +X лайков сегодня
+- +X просмотров “кто тебя лайкнул” сегодня
+1. **Rewind / Second Chance**
+- вернуть последние N пропущенных профилей (когда “ой, я случайно отшил”)
+1. **Boost показов профиля (аккуратно)**
+- краткосрочный буст (например 1–3 часа), чтобы профиль чаще показывался
+1. **Персонализация Pro**
+- тонкие настройки предпочтений (например “больше юмора/спорта”, “меньше флирта”)
+- короткое объяснение от бота: почему он показывает именно эти профили
+
+---
+
+## Что считаю успехом MVP
+
+- Пользователь видит, что бот “учится” (подборка реально становится точнее).
+- Матчи приводят к разговору, не просто “взаимно”.
+- 48-часовые чаты создают темп и не копят мертвые диалоги.
+- Бейджи/рейтинг помогают качеству, а не просто “круто/не круто”.
+- “Кто тебя лайкнул” ускоряет матчи и делает механику честной.
+
+---
+
+## Примечания по UX
+
+- Фото на старте оставляю (для конверсии).
+- Персонализация идет через текстовые реакции и предпочтения.
+- Бот “живой” за счет памяти и юмора.
+- Чат всегда закрывается через 48 часов.
+- Вход в систему приоритетно для людей, которые реально в США (валидация геолокации).
