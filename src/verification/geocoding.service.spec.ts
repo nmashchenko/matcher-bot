@@ -20,7 +20,7 @@ describe('GeocodingService', () => {
     it('should return US location data for coordinates in the USA', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({
+        json: () => ({
           address: {
             country: 'United States',
             country_code: 'us',
@@ -44,7 +44,7 @@ describe('GeocodingService', () => {
     it('should return isUSA=false for non-US coordinates', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({
+        json: () => ({
           address: {
             country: 'Germany',
             country_code: 'de',

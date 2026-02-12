@@ -1,9 +1,8 @@
 import { Logger } from '@nestjs/common';
-import { Update, Ctx, Start, On, Action, Hears } from 'nestjs-telegraf';
+import { Update, Ctx, On, Action, Hears } from 'nestjs-telegraf';
 import { Context, Markup } from 'telegraf';
 import { VerificationService } from './verification.service.js';
 import { US_STATES } from './us-states.js';
-import { VerificationStatus } from '../../prisma/generated/client.js';
 
 @Update()
 export class VerificationUpdate {
@@ -11,32 +10,7 @@ export class VerificationUpdate {
 
   constructor(private readonly verificationService: VerificationService) {}
 
-  @Start()
-  async onStart(@Ctx() ctx: Context) {
-    const from = ctx.from;
-    if (!from) return;
-
-    await this.verificationService.findOrCreateUser({
-      telegramId: from.id,
-      username: from.username,
-      firstName: from.first_name,
-      lastName: from.last_name,
-    });
-
-    const status = await this.verificationService.getVerificationStatus(
-      BigInt(from.id),
-    );
-
-    if (
-      status?.verificationStatus === VerificationStatus.VERIFIED ||
-      status?.verificationStatus === VerificationStatus.UNVERIFIED
-    ) {
-      await ctx.reply(
-        `С возвращением! Ты уже зарегистрирован (${status.city}, ${status.state}). Скоро здесь будет подбор.`,
-      );
-      return;
-    }
-
+  async sendVerificationPrompt(ctx: Context) {
     await ctx.reply(
       'Привет! Я — Matcher Bot. Помогу найти интересных людей из СНГ рядом с тобой в США.\n\n' +
         'Для начала мне нужно убедиться, что ты в США. Поделись геолокацией — это одноразово и безопасно.',
@@ -106,10 +80,7 @@ export class VerificationUpdate {
       rows.push(buttons.slice(i, i + 3));
     }
 
-    await ctx.reply(
-      '📍 Выбери свой штат:',
-      Markup.inlineKeyboard(rows),
-    );
+    await ctx.reply('📍 Выбери свой штат:', Markup.inlineKeyboard(rows));
   }
 
   @Action(/^state:(.+)$/)
@@ -147,11 +118,7 @@ export class VerificationUpdate {
     const city = text.trim();
     delete session.selectedState;
 
-    const result = await this.verificationService.verifyManually(
-      BigInt(from.id),
-      state,
-      city,
-    );
+    await this.verificationService.verifyManually(BigInt(from.id), state, city);
 
     await ctx.reply(
       `📍 Записал: ${city}, ${state}\n` +

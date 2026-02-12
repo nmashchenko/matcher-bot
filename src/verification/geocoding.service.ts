@@ -8,6 +8,19 @@ export interface GeocodingResult {
   isUSA: boolean;
 }
 
+interface NominatimAddress {
+  country?: string;
+  country_code?: string;
+  state?: string;
+  city?: string;
+  town?: string;
+  village?: string;
+}
+
+interface NominatimResponse {
+  address: NominatimAddress;
+}
+
 @Injectable()
 export class GeocodingService {
   private readonly logger = new Logger(GeocodingService.name);
@@ -32,8 +45,8 @@ export class GeocodingService {
         return null;
       }
 
-      const data = await response.json();
-      const address = data.address;
+      const data = (await response.json()) as NominatimResponse;
+      const { address } = data;
 
       return {
         country: address.country ?? '',

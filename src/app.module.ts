@@ -4,6 +4,7 @@ import { TelegrafModule } from 'nestjs-telegraf';
 import { session } from 'telegraf';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { VerificationModule } from './verification/verification.module.js';
+import { BotModule } from './bot/bot.module.js';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { VerificationModule } from './verification/verification.module.js';
       }),
     }),
     VerificationModule,
+    BotModule,
   ],
 })
 export class AppModule {}

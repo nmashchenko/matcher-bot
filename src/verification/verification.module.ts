@@ -5,6 +5,6 @@ import { VerificationUpdate } from './verification.update.js';
 
 @Module({
   providers: [GeocodingService, VerificationService, VerificationUpdate],
-  exports: [VerificationService],
+  exports: [VerificationService, VerificationUpdate],
 })
 export class VerificationModule {}
