@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-require-imports */
-
 // Mock Prisma generated client to avoid ESM import.meta.url issues in Jest
 jest.mock('../../prisma/generated/client', () => ({
   VerificationStatus: {
@@ -17,9 +15,9 @@ jest.mock('../prisma/prisma.service', () => ({
 }));
 
 import { Test, TestingModule } from '@nestjs/testing';
-import { VerificationService } from './verification.service.js';
-import { PrismaService } from '../prisma/prisma.service.js';
-import { GeocodingService } from './geocoding.service.js';
+import { VerificationService } from './verification.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { GeocodingService } from './geocoding.service';
 
 // Mirror Prisma enum for testing
 const VerificationStatus = {
@@ -98,7 +96,11 @@ describe('VerificationService', () => {
         verificationStatus: VerificationStatus.VERIFIED,
       });
 
-      const result = await service.verifyByLocation(BigInt(12345), 34.05, -118.24);
+      const result = await service.verifyByLocation(
+        BigInt(12345),
+        34.05,
+        -118.24,
+      );
 
       expect(result.verified).toBe(true);
       expect(result.state).toBe('California');
@@ -118,7 +120,7 @@ describe('VerificationService', () => {
         verificationStatus: VerificationStatus.REJECTED,
       });
 
-      const result = await service.verifyByLocation(BigInt(12345), 52.52, 13.40);
+      const result = await service.verifyByLocation(BigInt(12345), 52.52, 13.4);
 
       expect(result.verified).toBe(false);
     });

@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
-import { BotUpdate } from './bot.update.js';
-import { VerificationModule } from '../verification/verification.module.js';
+import { BotUpdate } from './bot.update';
+import { VerificationModule } from '../verification/verification.module';
 
 @Module({
   imports: [VerificationModule],

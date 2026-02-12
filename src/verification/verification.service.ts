@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { VerificationStatus } from '../../prisma/generated/client.js';
-import { PrismaService } from '../prisma/prisma.service.js';
-import { GeocodingService } from './geocoding.service.js';
+import { VerificationStatus } from '../../prisma/generated/client';
+import { PrismaService } from '../prisma/prisma.service';
+import { GeocodingService } from './geocoding.service';
 
 interface VerifyByLocationResult {
   verified: boolean;

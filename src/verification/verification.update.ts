@@ -6,9 +6,9 @@ import type {
   LocationContext,
   TextContext,
   CallbackQueryContext,
-} from '../bot/bot-context.js';
-import { VerificationService } from './verification.service.js';
-import { US_STATES } from './us-states.js';
+} from '../bot/bot-context';
+import { VerificationService } from './verification.service';
+import { US_STATES } from './us-states';
 
 @Update()
 export class VerificationUpdate {

@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
-import { GeocodingService } from './geocoding.service.js';
-import { VerificationService } from './verification.service.js';
-import { VerificationUpdate } from './verification.update.js';
+import { GeocodingService } from './geocoding.service';
+import { VerificationService } from './verification.service';
+import { VerificationUpdate } from './verification.update';
 
 @Module({
   providers: [GeocodingService, VerificationService, VerificationUpdate],

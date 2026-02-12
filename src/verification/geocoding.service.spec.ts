@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { GeocodingService } from './geocoding.service.js';
+import { GeocodingService } from './geocoding.service';
 
 const mockFetch = jest.fn();
 global.fetch = mockFetch;

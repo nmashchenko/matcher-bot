@@ -1,9 +1,9 @@
 import { Logger } from '@nestjs/common';
 import { Update, Ctx, Start } from 'nestjs-telegraf';
-import { VerificationService } from '../verification/verification.service.js';
-import { VerificationUpdate } from '../verification/verification.update.js';
-import { VerificationStatus } from '../../prisma/generated/client.js';
-import type { BotContext } from './bot-context.js';
+import { VerificationService } from '../verification/verification.service';
+import { VerificationUpdate } from '../verification/verification.update';
+import { VerificationStatus } from '../../prisma/generated/client';
+import type { BotContext } from './bot-context';
 
 @Update()
 export class BotUpdate {

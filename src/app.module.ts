@@ -2,9 +2,9 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TelegrafModule } from 'nestjs-telegraf';
 import { session } from 'telegraf';
-import { PrismaModule } from './prisma/prisma.module.js';
-import { VerificationModule } from './verification/verification.module.js';
-import { BotModule } from './bot/bot.module.js';
+import { PrismaModule } from './prisma/prisma.module';
+import { VerificationModule } from './verification/verification.module';
+import { BotModule } from './bot/bot.module';
 
 @Module({
   imports: [
