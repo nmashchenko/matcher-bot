@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TelegrafModule } from 'nestjs-telegraf';
 import { session } from 'telegraf';
 import { PrismaModule } from './prisma/prisma.module.js';
+import { VerificationModule } from './verification/verification.module.js';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
         middlewares: [session()],
       }),
     }),
+    VerificationModule,
   ],
 })
 export class AppModule {}
