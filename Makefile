@@ -1,16 +1,16 @@
-.PHONY: help db-reset db-migrate db-studio dev
+.PHONY: help run build migrate db-reset
 
 help: ## Show available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
 
+run: ## Start the bot locally
+	go run ./cmd/bot
+
+build: ## Build the bot binary
+	go build -o matcher-bot ./cmd/bot
+
+migrate: ## Run database migrations (up)
+	go run ./migrations up
+
 db-reset: ## Drop all tables and re-run migrations
-	npx prisma migrate reset --force
-
-db-migrate: ## Run pending migrations
-	npx prisma migrate dev
-
-db-studio: ## Open Prisma Studio
-	npx prisma studio
-
-dev: ## Start the bot in dev mode
-	npx nest start --watch
+	go run ./migrations reset

@@ -15,12 +15,8 @@ services:
     depends_on:
       - postgres
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/matcher_bot?schema=public
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/matcher_bot?sslmode=disable
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
-    ports:
-      - '3000:3000'
-    command: >
-      sh -c "npx prisma migrate deploy && node dist/main.js"
 
 volumes:
   postgres_data:
