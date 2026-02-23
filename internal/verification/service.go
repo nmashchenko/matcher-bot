@@ -32,45 +32,6 @@ func NewService(db *bun.DB) *Service {
 	return &Service{DB: db}
 }
 
-func (s *Service) FindOrCreateUser(ctx context.Context, telegramID int64, username, firstName, lastName *string) (*database.User, error) {
-	user := new(database.User)
-	err := s.DB.NewSelect().
-		Model(user).
-		Where("telegram_id = ?", telegramID).
-		Scan(ctx)
-
-	if err != nil {
-		// User not found, create new
-		user = &database.User{
-			TelegramID: telegramID,
-			Username:   username,
-			FirstName:  firstName,
-			LastName:   lastName,
-		}
-		_, err = s.DB.NewInsert().Model(user).Exec(ctx)
-		if err != nil {
-			return nil, err
-		}
-		return user, nil
-	}
-
-	// Update existing user info
-	user.Username = username
-	user.FirstName = firstName
-	user.LastName = lastName
-	user.UpdatedAt = time.Now()
-	_, err = s.DB.NewUpdate().
-		Model(user).
-		Column("username", "first_name", "last_name", "updated_at").
-		Where("telegram_id = ?", telegramID).
-		Exec(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return user, nil
-}
-
 func (s *Service) VerifyByLocation(ctx context.Context, telegramID int64, lat, lon float64) (*VerifyResult, error) {
 	geo, err := geocoding.ReverseGeocode(lat, lon)
 	if err != nil || geo == nil {

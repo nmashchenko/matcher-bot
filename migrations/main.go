@@ -39,10 +39,16 @@ func main() {
 		if err := up001(ctx, db); err != nil {
 			log.Fatal(err)
 		}
+		if err := up002(ctx, db); err != nil {
+			log.Fatal(err)
+		}
 		fmt.Println("Migrations applied successfully.")
 
 	case "down":
 		fmt.Println("Running migrations down...")
+		if err := down002(ctx, db); err != nil {
+			log.Fatal(err)
+		}
 		if err := down001(ctx, db); err != nil {
 			log.Fatal(err)
 		}
@@ -50,10 +56,16 @@ func main() {
 
 	case "reset":
 		fmt.Println("Resetting database...")
+		if err := down002(ctx, db); err != nil {
+			log.Fatal(err)
+		}
 		if err := down001(ctx, db); err != nil {
 			log.Fatal(err)
 		}
 		if err := up001(ctx, db); err != nil {
+			log.Fatal(err)
+		}
+		if err := up002(ctx, db); err != nil {
 			log.Fatal(err)
 		}
 		fmt.Println("Database reset successfully.")

@@ -8,12 +8,18 @@ import (
 	tele "gopkg.in/telebot.v4"
 )
 
-type Handler struct {
-	svc *Service
+type verificationService interface {
+	VerifyByLocation(ctx context.Context, telegramID int64, lat, lon float64) (*VerifyResult, error)
+	GetVerificationStatus(ctx context.Context, telegramID int64) (*StatusResult, error)
 }
 
-func NewHandler(svc *Service) *Handler {
-	return &Handler{svc: svc}
+type Handler struct {
+	svc        verificationService
+	onVerified func(tele.Context) error
+}
+
+func NewHandler(svc verificationService, onVerified func(tele.Context) error) *Handler {
+	return &Handler{svc: svc, onVerified: onVerified}
 }
 
 func (h *Handler) Register(b *tele.Bot) {
@@ -54,10 +60,16 @@ func (h *Handler) OnLocation(c tele.Context) error {
 	}
 
 	if result.Verified {
-		return c.Send(
-			fmt.Sprintf("\u2705 Подтверждено! Ты в %s, %s.\n\nОтлично, теперь можно переходить к настройке профиля. (Скоро будет доступно)", result.City, result.State),
+		if err := c.Send(
+			fmt.Sprintf("\u2705 Подтверждено! Ты в %s, %s.", result.City, result.State),
 			&tele.ReplyMarkup{RemoveKeyboard: true},
-		)
+		); err != nil {
+			log.Printf("send verified msg error: %v", err)
+		}
+		if h.onVerified != nil {
+			return h.onVerified(c)
+		}
+		return nil
 	}
 
 	return c.Send("\u274C Похоже, ты не в США. Этот бот пока работает только для людей в Штатах.\n\n" +
