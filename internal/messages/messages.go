@@ -21,12 +21,11 @@ const (
 		"Если ты считаешь, что это ошибка — попробуй отправить геолокацию ещё раз."
 )
 
+// Sticker
+const WelcomeSticker = "CAACAgIAAxkBAAIBKWmdA6Gwvt5-6TpbRIyrKAdxPl0vAAL5HgACv2nBSsMzoEX8LyRUOgQ" // send any sticker to bot
+
 // Onboarding
 const (
-	AskAge         = "Сколько тебе лет?"
-	AskGoal        = "Что ищешь?"
-	AskBio         = "Расскажи о себе в 2-3 предложениях:"
-	AskLookingFor  = "Опиши, кого ищешь или что для тебя важно в общении:"
 	InvalidAge     = "Введи возраст от 16 до 99."
 	TooShort       = "Слишком коротко — напиши хотя бы 20 символов."
 	OnboardingDone = "" // unused, kept for reference
@@ -45,8 +44,24 @@ func WelcomeBack(city, state string) string {
 	return fmt.Sprintf("С возвращением! Ты уже зарегистрирован (%s, %s). Скоро здесь будет подбор.", city, state)
 }
 
-func AgeFromTelegram(age int) string {
-	return fmt.Sprintf("Мне удалось определить твой возраст из Telegram: %d. Что ищешь?", age)
+func AgeFromTelegram(age int, city, state string) string {
+	return fmt.Sprintf("Ты в %s, %s — и тебе %d. Что ищешь?", city, state, age)
+}
+
+func AskAge(city, state string) string {
+	return fmt.Sprintf("Круто, ты в %s, %s! Сколько тебе лет?", city, state)
+}
+
+func AskGoal(age int, city string) string {
+	return fmt.Sprintf("Отлично, %d лет в %s — расскажи, что ищешь?", age, city)
+}
+
+func AskBio(goalLabel string) string {
+	return fmt.Sprintf("Цель: %s — отлично! Расскажи о себе в 2-3 предложениях:", goalLabel)
+}
+
+func AskLookingFor(name string) string {
+	return fmt.Sprintf("Спасибо, %s! Теперь опиши, кого ищешь или что для тебя важно в общении:", name)
 }
 
 func ProfileComplete(name string, age int, goal, bio, lookingFor, city, state string) string {

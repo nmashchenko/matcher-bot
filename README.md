@@ -1,286 +1,246 @@
-## Идея
+Idea
 
-Я делаю Telegram-бота для СНГ ребят в США (в основном молодежь), который работает как персональный помощник: он подбирает людей, учится на моих текстовых реакциях (без кнопок), помнит “как шло вчера”, и после лайка/матча сам создает приватный чат на двоих, начинает диалог и через 48 часов удаляет комнату.
+I’m building a Telegram bot for CIS youth in the US (mostly young people) that works like a personal assistant: it matches people, learns from my text reactions (no buttons), remembers “how yesterday went,” and after a like/match it automatically creates a private chat for two, starts the dialogue, and deletes the room after 48 hours.
 
----
+⸻
 
-## Основные цели MVP
+Main MVP Goals
+	•	Fast onboarding and quick start (so users don’t drop off).
+	•	Personalization for each user.
+	•	Matches don’t turn into endless texting: a two-person chat lives exactly 48 hours and always closes.
+	•	Reputation/rating system isn’t dumb, but motivates normal behavior (not “farming attention,” not ghosting, not liking everyone).
+	•	Matching is fair: if someone likes someone, we don’t hide it as a “secret behind a donation” (at least at the core level).
 
-- Быстрый онбординг и быстрый старт (чтобы не уходили).
-- Персонализация под каждого юзера
-- Матчи не превращаются в вечную переписку: чат на двоих живет **ровно 48 часов** и закрывается всегда.
-- Репутация/рейтинг не тупой, а мотивирует нормальное поведение (не “ловить внимание”, не молчать, не лайкать всех подряд).
-- Матчинг честный: если кто-то кому-то понравился, это не прячем как “секрет за донат” (по крайней мере в базе).
+⸻
 
----
+Initial Geolocation Validation (Filtering Non-US Users)
 
-## Начальная валидация геолокации (фильтрация не из США)
+It’s important that the bot is for people who are actually in the US, otherwise there will be tons of fakes/random users and it will turn into garbage.
 
-Мне важно, чтобы бот был **для людей, которые реально в США**, иначе будет куча фейков/случайных людей и это превратится в мусор.
+How it works on first launch
+	1.	The bot asks to share location (one-time) via Telegram’s standard “Share location” button.
+	2.	The bot checks country = United States and activates the user.
+	3.	If the user doesn’t want to share exact location:
+	•	The bot offers an alternative: manually choose state/city,
+	•	But the account gets “unverified” status, and visibility/likes are limited until US presence is confirmed.
 
-### Как это работает при первом открытии бота
+Re-verification
+	•	Periodically (for example every N days), the bot can gently ask to refresh verification if the user was inactive for a long time or suddenly changed “city.”
 
-1. Бот просит **поделиться геолокацией** (одноразово) через стандартную кнопку Telegram “Share location”.
-2. Бот проверяет страну = **United States** и включает пользователя в систему.
-3. Если человек не хочет делиться точкой:
-    - бот предлагает альтернативу: выбрать штат/город вручную,
-    - но аккаунт получает статус “не подтвержден”, и показы/лайки будут ограничены, пока не подтвердит США.
+⸻
 
-### Повторная проверка
+Format (Asynchronous)
+	•	I enter the bot and start matching.
+	•	The bot shows profiles one by one (as cards).
+	•	I reply with text, saying what I think.
+	•	The bot interprets: like/pass/maybe/report + reasons.
+	•	Matching works in two ways (below).
 
-- Периодически (например раз в N дней) бот может мягко попросить обновить подтверждение, если пользователь пропадал надолго или резко сменил “город”.
+⸻
 
----
+Onboarding (Fast, No Life Story Questionnaire)
 
-## Формат работы (асинхронный)
+Goal: collect the minimum needed to personalize immediately and filter out junk.
+	1.	City (and neighborhood/county)
+	2.	Age range
+	3.	Languages (RU/UA/EN)
+	4.	Goal: friends / parties / dating / mixed
+	5.	Interests (5–7 tags)
+	6.	A few “definitely don’t want” (1–3 red flags)
 
-- Я захожу в бота, запускаю подбор.
-- Бот показывает профили по одному (карточкой).
-- Я отвечаю **текстом**, что думаю.
-- Бот понимает: like/pass/maybe/report + причины.
-- Дальше матчинг идет двумя способами (ниже).
+Final message: “Okay, I’ve got it. Showing your matches.”
 
----
+⸻
 
-## Онбординг (быстро, без анкеты на жизнь)
+Profile Card (MVP Display)
+	•	Photo (1–3)
+	•	Name, age
+	•	City/area
+	•	Short bio (1–3 sentences)
+	•	Interests (tags)
 
-Цель: собрать минимум, чтобы сразу персонализировать и фильтровать мусор.
+And a bot question: “What do you think?”
 
-1. Город (и район/округ)
-2. Возрастной диапазон
-3. Языки (RU/UA/EN)
-4. Цель: друзья / тусовки / дейтинг / смешанное
-5. Интересы (5–7 тегов)
-6. Несколько “не хочу точно” (1–3 red flags)
+I respond with text.
 
-Финал: “Окей, я запомнил. Показываю подбор.”
+⸻
 
----
+Text Reactions (No Buttons)
 
-## Карточка профиля (что показываю в MVP)
+I can write anything:
+	•	“fine, let’s go”
+	•	“not my type”
+	•	“too serious, want more fun”
+	•	“too flirty”
+	•	“boring”
+	•	“idk, not sure”
 
-- Фото (1–3)
-- Имя, возраст
-- Город/район
-- Короткое био (1–3 предложения)
-- Интересы (теги)
+The bot must:
+	1.	Understand the action: like/pass/maybe/report
+	2.	Extract reasons (tags)
+	3.	Confirm in one sentence what it understood (so I see personalization working)
 
-И вопрос от бота: **“Что думаешь?”**
+Example confirmations:
+	•	“Got it: pass, reason ‘too serious.’ Shifting results toward more light profiles.”
+	•	“Okay: like. Noted that you’re into [humor/sports/etc.].”
 
-Я отвечаю текстом.
+⸻
 
----
+Personalization (Simple but Feels Smart)
 
-## Текстовые реакции (без кнопок)
+I’m not training a separate model per user. I’m making it feel smart.
 
-Я могу писать что угодно:
+What the bot stores per user
+	•	Preference tag weights (what they like / what turns them off)
+	•	Statistics of rejection reasons (“too serious,” “no common interests,” “too flirty”)
+	•	Mood/session dynamics (for example, streak of rejections)
+	•	Short “yesterday summary” (1–2 sentences)
 
-- “норм, давай”
-- “не мое”
-- “слишком серьезный, хочу веселее”
-- “слишком флирт”
-- “скучно”
-- “хз, сомневаюсь”
+How the bot uses it
+	•	Ranks new profiles by interest match + learned preferences
+	•	If I often say “boring/too serious,” it reduces those in the feed
+	•	If I like a certain vibe, it increases similar profiles
 
-Бот должен:
+⸻
 
-1. понять действие: like/pass/maybe/report
-2. извлечь причины (теги)
-3. подтвердить одной фразой, что он понял (чтобы я видел, что персонализация работает)
+“Tomorrow Memory” + Light Humor
 
-Пример подтверждения:
+The bot feels alive because it remembers yesterday.
 
-- “Понял: pass, причина ‘слишком серьезный’. Сдвигаю подбор в сторону более лайтовых.”
-- “Окей: like. Запомнил, что тебе заходит [юмор/спорт/..].”
+Inside a session
 
----
+If I reject many profiles in a row, the bot adds short playful comments:
+	•	“You’re strict today. Got it. Adjusting.”
+	•	“Okay, we’re in ‘not impressed’ mode. Let me try sharper.”
 
-## Персонализация (упрощенная, но ощущается)
+Next day (or after a pause)
 
-Я не “тренирую модель под каждого”. Я делаю так, чтобы бот казался умным:
+Bot opens with context:
+	•	“Yesterday didn’t go great. I removed some ‘too serious’ profiles and added more [humor/events/etc.].”
+	•	“Based on yesterday, vibe matters more to you than a perfect profile. Let’s go.”
 
-### Что бот хранит по каждому пользователю
+⸻
 
-- веса тегов предпочтений (что чаще нравится / что чаще отталкивает)
-- статистику причин отказов (“слишком серьезный”, “нет общих интересов”, “слишком флирт”)
-- динамику настроения/сессии (например, серия отказов)
-- краткое “вчерашнее резюме” (1–2 предложения)
+Matching Options (2 Scenarios)
 
-### Как бот использует это
+Two paths so there are no artificial secrets and people reach contact faster.
 
-- ранжирует новые профили по совпадению интересов + предпочтений
-- если я часто пишу “скучно/слишком серьезный”, бот уменьшает таких в выдаче
-- если я лайкаю людей с определенным вайбом, бот усиливает похожих
+1) Classic: Mutual Like
+	•	I like someone.
+	•	They like me.
+	•	Bot registers a match and creates a 48-hour private chat.
 
----
+2) Like via “Who Liked You” (Nothing Hidden)
 
-## Память “на завтра” + смешные фразы (мягко)
+If someone liked me, the bot doesn’t hide it. There’s a mode:
+“Who liked you” — the bot shows profiles of people who liked me.
 
-Бот делает опыт живым, потому что помнит вчерашнюю динамику.
+Then I decide:
+	•	If I like them back → instant match → 48-hour chat.
+	•	If I pass → rejection is logged (used for personalization).
 
-### Внутри сессии
+Important: “Who liked you” shows real interest, not blind algorithmic guessing.
 
-Если я подряд отверг много профилей, бот вставляет короткие подколы:
+⸻
 
-- “Ты сегодня строгий. Понял. Подкручиваю выдачу.”
-- “Окей, у нас режим ‘не впечатлил’. Сейчас попробую точнее.”
+Match: Creating a Two-Person Chat + Starting Dialogue
 
-### На следующий день (или при первом заходе после паузы)
+How chat works
+	•	After a match, the bot creates a private two-person chat (plus the bot).
+	•	The bot starts the conversation to avoid “hi how are you.”
+	•	Then users talk on their own.
+	•	After 48 hours, the bot always closes and deletes the chat.
 
-Бот начинает с контекста:
+Host Script (Short, 2–4 Messages)
+	1.	“Yo. I matched you. I’m just here to kick things off so you don’t drown in ‘how are you.’”
+	2.	“Each of you: in one sentence, what’s your ideal evening in this city?”
+	3.	“Now one by one: name one thing you genuinely like (food/music/hobby).”
+	4.	“Okay, I see overlap in [X]. You’re on your own now. I’m silent.”
 
-- “Вчера у нас не задалось. Я убрал часть ‘слишком серьезных’ и добавил больше [юмора/ивентов/..].”
-- “Судя по вчерашним ответам, тебе важнее вайб, чем идеальная анкета. Погнали.”
+⸻
 
----
+Rating & Badges (Smarter and More Interesting)
 
-## Варианты матчинга (2 сценария)
+I want the rating system to encourage healthy behavior and filter people properly.
 
-Я делаю два пути, чтобы не было “секретов ради секретов”, и чтобы люди быстрее доходили до контакта.
+Two Levels: “Quality Signals” + “Behavioral Badges”
+	•	Quality Signals (indirect indicators of attractiveness/adequacy)
+	•	Behavioral Badges (how the person behaves inside the product)
 
-### 1) Классика: взаимный лайк
+Metrics Tracked
+	1.	Like Received Rate: likes received per 100 impressions
+	2.	Like Given Rate: likes given per 100 impressions
+	3.	Mutual Match Rate: mutual matches from given likes
+	4.	Chat Start Rate: % of matches where user actually enters/replies
+	5.	Response Rate: whether they reply during the 48-hour chat
+	6.	Selectivity Balance: balance between receiving and giving likes
+	7.	Consistency: regularity of activity
 
-- Я лайкнул человека.
-- Человек лайкнул меня.
-- Бот фиксирует матч и создает чат на двоих на 48 часов.
+⸻
 
-### 2) Лайк через “кто тебя лайкнул” (ничего не скрываем)
+Badges (Examples)
 
-Если кто-то поставил мне лайк, бот это не прячет. У меня есть режим:
-**“Кто тебя лайкнул”** — бот показывает список/карточки людей, которым я понравился.
+Attention Balance
+	•	“Attention Hunter”
+Gets many likes, rarely likes back + low chat start/response rate.
+	•	“Selective but Honest”
+Gives few likes but has high mutual match rate and decent response rate.
+	•	“Like Machine”
+Likes too many profiles in a row, low mutual match rate.
 
-Дальше я принимаю решение:
+Communication
+	•	“Ghost”
+Gets matches but often stays silent or doesn’t start chats.
+	•	“Solid Communicator”
+Replies consistently, chats aren’t empty.
+	•	“Starter”
+Frequently initiates and replies first.
 
-- Если я тоже лайкаю этого человека → сразу матч → создается чат на 48 часов.
-- Если я пасую → просто фиксируется отказ (и это идет в персонализацию).
+Profile Quality
+	•	“Empty Profile”
+Minimal info. Motivates filling it in (otherwise shown less).
+	•	“Clear Profile”
+Bio + interests filled, normal activity, good engagement.
 
-Важно: “кто тебя лайкнул” показывает именно реальный интерес, а не “слепую выдачу”.
+⸻
 
----
+Monetization (Later)
 
-## Матч: создание чата на двоих и старт диалога
+Monetization without aggressive “pay to message.” Logic is simple: free version has limits, donation (via Telegram Stars or similar) expands options.
 
-### Как работает чат
+Free Limits
+	•	Profile views per day: limited (e.g., 25–40)
+	•	Likes per day: limited (e.g., 10–20)
+	•	“Who liked you”: available, but possibly limited daily views (e.g., 10)
+	•	Re-show skipped profiles: rare or once per day
 
-- После матча бот создает приватный чат на двоих (плюс бот).
-- Бот начинает диалог, чтобы не было “привет как дела”.
-- Дальше люди общаются сами.
-- Через **48 часов** бот закрывает и удаляет чат всегда.
+Paid Expansion (Stars / Donation)
+	1.	+Limits
+	•	+X profile views today
+	•	+X likes today
+	•	+X “who liked you” views today
+	2.	Rewind / Second Chance
+	•	Restore last N skipped profiles (“oops, rejected by accident”)
+	3.	Profile Boost (Carefully)
+	•	Short-term boost (e.g., 1–3 hours), profile shown more often
+	4.	Personalization Pro
+	•	Fine preference tuning (“more humor/sports,” “less flirting”)
+	•	Short bot explanation of why certain profiles are shown
 
-### Сценарий ведущего (короткий, 2–4 сообщения)
+⸻
 
-1. “Йо. Я вас сматчил. Я ведущий только для старта, чтобы не утонуть в ‘как дела’.”
-2. “Каждый: в 1 фразе, какой идеальный вечер в этом городе?”
-3. “Теперь по одному: назови одну штуку, которая тебе реально нравится (еда/музыка/хобби).”
-4. “Окей, вижу пересечение по [X]. Дальше вы сами. Я молчу.”
+MVP Success Criteria
+	•	User sees the bot “learning” (feed actually improves).
+	•	Matches lead to real conversations.
+	•	48-hour chats create tempo and prevent dead dialogues from piling up.
+	•	Badges/rating improve quality, not just “cool/not cool.”
+	•	“Who liked you” speeds up matches and keeps mechanics honest.
 
----
+⸻
 
-## Рейтинг и бейджи (более разумно и интересно)
-
-Я хочу, чтобы система рейтинга стимулировала нормальное поведение и помогала фильтровать людей.
-
-### Два уровня: “Сигналы качества” + “Поведенческие бейджи”
-
-- **Сигналы качества** (то, что косвенно показывает привлекательность/адекватность)
-- **Поведенческие бейджи** (то, как человек себя ведет в продукте)
-
-### Что я считаю (метрики)
-
-1. **Like Received Rate**: сколько лайков получает профиль на 100 показов
-2. **Like Given Rate**: сколько лайков человек раздает на 100 показов
-3. **Mutual Match Rate**: сколько взаимных из выданных лайков
-4. **Chat Start Rate**: доля матчей, где человек реально зашел в чат/ответил
-5. **Response Rate**: отвечает ли в чате (не молчит ли 48 часов)
-6. **Selectivity Balance**: баланс “получаю много лайков” vs “лайкаю в ответ”
-7. **Consistency**: регулярность активности (не пропадает ли надолго)
-
-### Бейджи (примеры)
-
-### Про баланс внимания
-
-- **“Охотница/охотник за вниманием”**
-    
-    Получает много лайков, почти никого не лайкает в ответ + низкий chat start/response.
-    
-- **“Селективный(ая), но честный(ая)”**
-    
-    Мало лайков раздает, но высокий mutual match rate и нормальный response rate.
-    
-- **“Лайк-машина”**
-    
-    Лайкает слишком много подряд, mutual match rate низкий.
-    
-
-### Про общение
-
-- **“Призрак”**
-    
-    Матчи есть, но часто молчит в чате или вообще не начинает.
-    
-- **“Нормальный коммуникатор”**
-    
-    Стабильно отвечает, чаты не пустые.
-    
-- **“Starter”**
-    
-    Часто начинает и первым отвечает.
-    
-
-### Про качество профиля
-
-- **“Профиль пустой”**
-    
-    Мало инфы. Мотивация заполнить (иначе хуже показывается).
-    
-- **“Профиль понятный”**
-    
-    Био + интересы заполнены, нормальная активность, хороший отклик.
-    
-
----
-
-## Монетизация (со временем)
-
-Я хочу монетизацию без жести “плати чтобы писать”. Логика простая: в бесплатной версии есть лимиты, а донат (через Telegram Stars или аналог) расширяет возможности.
-
-### Базовые лимиты (Free)
-
-- **Показы профилей в день**: ограничено (например 25–40)
-- **Лайки в день**: ограничено (например 10–20)
-- **“Кто тебя лайкнул”**: базово доступно, но может быть лимит на количество просмотров в день (например 10)
-- **Повторный показ пропущенных**: редко или только 1 раз в сутки
-
-### Платное расширение (Stars / донат)
-
-1. **+Лимиты**
-- +X показов профилей сегодня
-- +X лайков сегодня
-- +X просмотров “кто тебя лайкнул” сегодня
-1. **Rewind / Second Chance**
-- вернуть последние N пропущенных профилей (когда “ой, я случайно отшил”)
-1. **Boost показов профиля (аккуратно)**
-- краткосрочный буст (например 1–3 часа), чтобы профиль чаще показывался
-1. **Персонализация Pro**
-- тонкие настройки предпочтений (например “больше юмора/спорта”, “меньше флирта”)
-- короткое объяснение от бота: почему он показывает именно эти профили
-
----
-
-## Что считаю успехом MVP
-
-- Пользователь видит, что бот “учится” (подборка реально становится точнее).
-- Матчи приводят к разговору, не просто “взаимно”.
-- 48-часовые чаты создают темп и не копят мертвые диалоги.
-- Бейджи/рейтинг помогают качеству, а не просто “круто/не круто”.
-- “Кто тебя лайкнул” ускоряет матчи и делает механику честной.
-
----
-
-## Примечания по UX
-
-- Фото на старте оставляю (для конверсии).
-- Персонализация идет через текстовые реакции и предпочтения.
-- Бот “живой” за счет памяти и юмора.
-- Чат всегда закрывается через 48 часов.
-- Вход в систему приоритетно для людей, которые реально в США (валидация геолокации).
+UX Notes
+	•	Photos stay at the start (for conversion).
+	•	Personalization through text reactions + preferences.
+	•	Bot feels “alive” via memory and humor.
+	•	Chat always closes after 48 hours.
+	•	Priority entry for people actually in the US (geolocation validation).

@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"fmt"
 	"time"
 
 	"matcher-bot/internal/database"
@@ -36,6 +37,10 @@ func New(token string, db *bun.DB, openaiKey string) (*tele.Bot, error) {
 	obHandler.Register(b)
 
 	b.Handle(tele.OnText, handleText(userStore, obHandler))
+
+	b.Handle(tele.OnSticker, func(c tele.Context) error {
+		return c.Send(fmt.Sprintf("Sticker file_id:\n<code>%s</code>", c.Message().Sticker.FileID), tele.ModeHTML)
+	})
 
 	_ = b.SetCommands([]tele.Command{
 		{Text: "start", Description: "Начать / перезапустить бота"},

@@ -44,7 +44,20 @@ func (h *Handler) StartOnboarding(c tele.Context) error {
 		return h.ResumeOnboarding(c, user)
 	}
 
+	// Send welcome sticker.
+	if messages.WelcomeSticker != "REPLACE_ME" {
+		_ = c.Send(&tele.Sticker{File: tele.File{FileID: messages.WelcomeSticker}})
+	}
+
 	slog.Info("onboarding started", "telegram_id", c.Sender().ID)
+
+	// Fetch user to get city/state from verification.
+	user, err := h.users.GetByTelegramID(context.Background(), c.Sender().ID)
+	if err != nil {
+		slog.Error("onboarding fetch user", "error", err)
+		return c.Send(messages.RestartError)
+	}
+	city, geoState := derefStr(user.City), derefStr(user.State)
 
 	save := &database.UserUpdateData{}
 
@@ -65,7 +78,7 @@ func (h *Handler) StartOnboarding(c tele.Context) error {
 				return c.Send(messages.RestartError)
 			}
 			return c.Send(
-				messages.AgeFromTelegram(age),
+				messages.AgeFromTelegram(age, city, geoState),
 				h.buildGoalKeyboard(),
 			)
 		}
@@ -78,19 +91,20 @@ func (h *Handler) StartOnboarding(c tele.Context) error {
 			return c.Send(messages.RestartError)
 		}
 	}
-	return c.Send(messages.AskAge)
+	return c.Send(messages.AskAge(city, geoState))
 }
 
 func (h *Handler) ResumeOnboarding(c tele.Context, user *database.User) error {
+	city, geoState := derefStr(user.City), derefStr(user.State)
 	switch {
 	case user.Age == nil:
-		return c.Send(messages.AskAge)
+		return c.Send(messages.AskAge(city, geoState))
 	case user.Goal == nil:
-		return c.Send(messages.AskGoal, h.buildGoalKeyboard())
+		return c.Send(messages.AskGoal(*user.Age, city), h.buildGoalKeyboard())
 	case user.Bio == nil:
-		return c.Send(messages.AskBio)
+		return c.Send(messages.AskBio(GoalLabel(*user.Goal)))
 	case user.LookingFor == nil:
-		return c.Send(messages.AskLookingFor)
+		return c.Send(messages.AskLookingFor(c.Sender().FirstName))
 	default:
 		return nil
 	}
@@ -130,7 +144,13 @@ func (h *Handler) onAge(c tele.Context) error {
 		return c.Send(messages.RestartError)
 	}
 
-	return c.Send(messages.AskGoal, h.buildGoalKeyboard())
+	user, err := h.users.GetByTelegramID(context.Background(), c.Sender().ID)
+	if err != nil {
+		return c.Send(messages.RestartError)
+	}
+	city := derefStr(user.City)
+
+	return c.Send(messages.AskGoal(age, city), h.buildGoalKeyboard())
 }
 
 func (h *Handler) onGoal(c tele.Context) error {
@@ -154,7 +174,7 @@ func (h *Handler) onGoal(c tele.Context) error {
 
 	_ = c.Respond()
 	_ = c.Delete()
-	return c.Send(messages.AskBio)
+	return c.Send(messages.AskBio(GoalLabel(goal)))
 }
 
 func (h *Handler) onBio(c tele.Context) error {
@@ -177,7 +197,7 @@ func (h *Handler) onBio(c tele.Context) error {
 		return c.Send(messages.RestartError)
 	}
 
-	return c.Send(messages.AskLookingFor)
+	return c.Send(messages.AskLookingFor(c.Sender().FirstName))
 }
 
 func (h *Handler) onLookingFor(c tele.Context) error {
@@ -255,6 +275,13 @@ func (h *Handler) buildGoalKeyboard() *tele.ReplyMarkup {
 	}
 	markup.Inline(rows...)
 	return markup
+}
+
+func derefStr(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }
 
 func calcAge(bd tele.Birthdate) int {
