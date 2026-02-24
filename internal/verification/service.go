@@ -6,8 +6,6 @@ import (
 
 	"matcher-bot/internal/database"
 	"matcher-bot/internal/geocoding"
-
-	"github.com/uptrace/bun"
 )
 
 type VerifyResult struct {
@@ -24,35 +22,38 @@ type StatusResult struct {
 	City   string
 }
 
-type Service struct {
-	DB *bun.DB
+type geocoder interface {
+	ReverseGeocode(ctx context.Context, lat, lon float64) (*geocoding.GeoResult, error)
 }
 
-func NewService(db *bun.DB) *Service {
-	return &Service{DB: db}
+type Service struct {
+	users database.UserRepository
+	geo   geocoder
+}
+
+func NewService(users database.UserRepository, geo geocoder) *Service {
+	return &Service{users: users, geo: geo}
 }
 
 func (s *Service) VerifyByLocation(ctx context.Context, telegramID int64, lat, lon float64) (*VerifyResult, error) {
-	geo, err := geocoding.ReverseGeocode(lat, lon)
-	if err != nil || geo == nil {
+	geo, err := s.geo.ReverseGeocode(ctx, lat, lon)
+	if err != nil {
 		return &VerifyResult{Verified: false, Error: "geocoding_failed"}, nil
 	}
 
 	now := time.Now()
 
 	if geo.IsUSA {
-		_, err = s.DB.NewUpdate().
-			TableExpr("users").
-			Set("verification_status = ?", database.StatusVerified).
-			Set("latitude = ?", lat).
-			Set("longitude = ?", lon).
-			Set("country = ?", geo.Country).
-			Set("state = ?", geo.State).
-			Set("city = ?", geo.City).
-			Set("verified_at = ?", now).
-			Set("updated_at = ?", now).
-			Where("telegram_id = ?", telegramID).
-			Exec(ctx)
+		status := database.StatusVerified
+		err = s.users.Update(ctx, telegramID, &database.UserUpdateData{
+			VerificationStatus: &status,
+			Latitude:           &lat,
+			Longitude:          &lon,
+			Country:            &geo.Country,
+			State:              &geo.State,
+			City:               &geo.City,
+			VerifiedAt:         &now,
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -65,12 +66,10 @@ func (s *Service) VerifyByLocation(ctx context.Context, telegramID int64, lat, l
 	}
 
 	// Not in USA
-	_, err = s.DB.NewUpdate().
-		TableExpr("users").
-		Set("verification_status = ?", database.StatusRejected).
-		Set("updated_at = ?", now).
-		Where("telegram_id = ?", telegramID).
-		Exec(ctx)
+	status := database.StatusRejected
+	err = s.users.Update(ctx, telegramID, &database.UserUpdateData{
+		VerificationStatus: &status,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -79,12 +78,7 @@ func (s *Service) VerifyByLocation(ctx context.Context, telegramID int64, lat, l
 }
 
 func (s *Service) GetVerificationStatus(ctx context.Context, telegramID int64) (*StatusResult, error) {
-	user := new(database.User)
-	err := s.DB.NewSelect().
-		Model(user).
-		Column("verification_status", "state", "city").
-		Where("telegram_id = ?", telegramID).
-		Scan(ctx)
+	user, err := s.users.GetByTelegramID(ctx, telegramID)
 	if err != nil {
 		return nil, err
 	}

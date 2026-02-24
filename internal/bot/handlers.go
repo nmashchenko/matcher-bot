@@ -2,17 +2,18 @@ package bot
 
 import (
 	"context"
-	"fmt"
-	"log"
+	"errors"
+	"log/slog"
 
 	"matcher-bot/internal/database"
+	"matcher-bot/internal/messages"
 	"matcher-bot/internal/onboarding"
 	"matcher-bot/internal/verification"
 
 	tele "gopkg.in/telebot.v4"
 )
 
-func handleStart(userStore *database.UserStore, verifHandler *verification.Handler, obHandler *onboarding.Handler) tele.HandlerFunc {
+func handleStart(userStore database.UserRepository, verifHandler *verification.Handler, obHandler *onboarding.Handler) tele.HandlerFunc {
 	return func(c tele.Context) error {
 		sender := c.Sender()
 		username := ptrStr(sender.Username)
@@ -21,8 +22,8 @@ func handleStart(userStore *database.UserStore, verifHandler *verification.Handl
 
 		user, err := userStore.FindOrCreate(context.Background(), sender.ID, username, firstName, lastName)
 		if err != nil {
-			log.Printf("find or create user error: %v", err)
-			return c.Send("\u274C Произошла ошибка. Попробуй ещё раз.")
+			slog.Error("find or create user", "error", err)
+			return c.Send(messages.GenericError)
 		}
 
 		switch user.VerificationStatus {
@@ -37,7 +38,7 @@ func handleStart(userStore *database.UserStore, verifHandler *verification.Handl
 					state = *user.State
 				}
 				return c.Send(
-					fmt.Sprintf("С возвращением! Ты уже зарегистрирован (%s, %s). Скоро здесь будет подбор.", city, state),
+					messages.WelcomeBack(city, state),
 					&tele.ReplyMarkup{RemoveKeyboard: true},
 				)
 			case database.StepNone:
@@ -51,23 +52,23 @@ func handleStart(userStore *database.UserStore, verifHandler *verification.Handl
 	}
 }
 
-func handleText(userStore *database.UserStore, obHandler *onboarding.Handler) tele.HandlerFunc {
+func handleText(userStore database.UserRepository, obHandler *onboarding.Handler) tele.HandlerFunc {
 	return func(c tele.Context) error {
 		user, err := userStore.GetByTelegramID(context.Background(), c.Sender().ID)
 		if err != nil {
-			return c.Send("Напиши /start чтобы начать.")
+			return c.Send(messages.StartPrompt)
 		}
 
 		if user.VerificationStatus == database.StatusVerified &&
 			user.OnboardingStep != database.StepNone &&
 			user.OnboardingStep != database.StepDone {
-			handled, err := obHandler.OnText(c)
-			if handled {
+			err = obHandler.OnText(c)
+			if !errors.Is(err, onboarding.ErrNotHandled) {
 				return err
 			}
 		}
 
-		return c.Send("Не понял тебя. Выбери, что хочешь сделать, или напиши /start.")
+		return c.Send(messages.UnknownCommand)
 	}
 }
 

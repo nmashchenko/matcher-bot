@@ -2,57 +2,113 @@ package verification
 
 import (
 	"context"
-	"database/sql"
-	"os"
+	"fmt"
 	"testing"
 
 	"matcher-bot/internal/database"
-
-	"github.com/uptrace/bun"
-	"github.com/uptrace/bun/dialect/pgdialect"
-	"github.com/uptrace/bun/driver/pgdriver"
+	"matcher-bot/internal/geocoding"
 )
 
-func setupTestDB(t *testing.T) *bun.DB {
-	t.Helper()
+type mockUserStore struct {
+	user *database.User
+	err  error
+}
 
-	dsn := os.Getenv("DATABASE_URL")
-	if dsn == "" {
-		t.Skip("DATABASE_URL not set, skipping integration test")
+func (m *mockUserStore) FindOrCreate(_ context.Context, _ int64, _, _, _ *string) (*database.User, error) {
+	return m.user, m.err
+}
+
+func (m *mockUserStore) GetByTelegramID(_ context.Context, _ int64) (*database.User, error) {
+	return m.user, m.err
+}
+
+func (m *mockUserStore) Update(_ context.Context, _ int64, _ *database.UserUpdateData) error {
+	return m.err
+}
+
+type mockGeocoder struct {
+	result *geocoding.GeoResult
+	err    error
+}
+
+func (m *mockGeocoder) ReverseGeocode(_ context.Context, _, _ float64) (*geocoding.GeoResult, error) {
+	return m.result, m.err
+}
+
+func TestVerifyByLocation_USA(t *testing.T) {
+	svc := NewService(
+		&mockUserStore{},
+		&mockGeocoder{result: &geocoding.GeoResult{
+			Country: "United States", CountryCode: "us",
+			State: "California", City: "San Francisco", IsUSA: true,
+		}},
+	)
+
+	result, err := svc.VerifyByLocation(context.Background(), 12345, 37.77, -122.41)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
-
-	sqldb := sql.OpenDB(pgdriver.NewConnector(pgdriver.WithDSN(dsn)))
-	db := bun.NewDB(sqldb, pgdialect.New())
-
-	if err := db.PingContext(context.Background()); err != nil {
-		t.Skipf("database not reachable: %v", err)
+	if !result.Verified {
+		t.Error("expected Verified = true")
 	}
+	if result.State != "California" {
+		t.Errorf("State = %q; want California", result.State)
+	}
+}
 
-	// Clean up test data
-	t.Cleanup(func() {
-		db.NewDelete().TableExpr("users").Where("telegram_id >= 900000").Exec(context.Background())
-		db.Close()
-	})
+func TestVerifyByLocation_NonUSA(t *testing.T) {
+	svc := NewService(
+		&mockUserStore{},
+		&mockGeocoder{result: &geocoding.GeoResult{
+			Country: "Germany", CountryCode: "de",
+			State: "Berlin", City: "Berlin", IsUSA: false,
+		}},
+	)
 
-	return db
+	result, err := svc.VerifyByLocation(context.Background(), 12345, 52.52, 13.40)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Verified {
+		t.Error("expected Verified = false")
+	}
+	if result.Status != database.StatusRejected {
+		t.Errorf("Status = %q; want REJECTED", result.Status)
+	}
+}
+
+func TestVerifyByLocation_GeocodingFailed(t *testing.T) {
+	svc := NewService(
+		&mockUserStore{},
+		&mockGeocoder{err: fmt.Errorf("network error")},
+	)
+
+	result, err := svc.VerifyByLocation(context.Background(), 12345, 0, 0)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Error != "geocoding_failed" {
+		t.Errorf("Error = %q; want geocoding_failed", result.Error)
+	}
 }
 
 func TestGetVerificationStatus(t *testing.T) {
-	db := setupTestDB(t)
-	svc := NewService(db)
-	users := database.NewUserStore(db)
-	ctx := context.Background()
+	state := "California"
+	city := "SF"
+	svc := NewService(
+		&mockUserStore{user: &database.User{
+			VerificationStatus: database.StatusVerified,
+			State:              &state,
+			City:               &city,
+		}},
+		nil,
+	)
 
-	db.NewDelete().TableExpr("users").Where("telegram_id = ?", 900004).Exec(ctx)
-
-	username := "status"
-	users.FindOrCreate(ctx, 900004, &username, nil, nil)
-
-	status, err := svc.GetVerificationStatus(ctx, 900004)
+	status, err := svc.GetVerificationStatus(context.Background(), 12345)
 	if err != nil {
-		t.Fatalf("GetVerificationStatus: %v", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
-	if status.Status != database.StatusPending {
-		t.Errorf("Status = %q; want PENDING", status.Status)
+	if status.Status != database.StatusVerified {
+		t.Errorf("Status = %q; want VERIFIED", status.Status)
 	}
 }

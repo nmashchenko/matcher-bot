@@ -1,10 +1,11 @@
 package geocoding
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
+	"time"
 )
 
 type GeoResult struct {
@@ -26,40 +27,43 @@ type nominatimResponse struct {
 	} `json:"address"`
 }
 
-var httpClient = &http.Client{}
-
-var reverseGeocodeURL = func(lat, lon float64) string {
-	return fmt.Sprintf(
-		"https://nominatim.openstreetmap.org/reverse?format=json&lat=%f&lon=%f&addressdetails=1",
-		lat, lon,
-	)
+// Geocoder performs reverse-geocoding via Nominatim.
+type Geocoder struct {
+	client  *http.Client
+	baseURL string
 }
 
-func ReverseGeocode(lat, lon float64) (*GeoResult, error) {
-	url := reverseGeocodeURL(lat, lon)
+// NewGeocoder creates a Geocoder with sensible defaults.
+func NewGeocoder() *Geocoder {
+	return &Geocoder{
+		client:  &http.Client{Timeout: 10 * time.Second},
+		baseURL: "https://nominatim.openstreetmap.org",
+	}
+}
 
-	req, err := http.NewRequest("GET", url, nil)
+// ReverseGeocode resolves lat/lon to a country, state, and city.
+func (g *Geocoder) ReverseGeocode(ctx context.Context, lat, lon float64) (*GeoResult, error) {
+	url := fmt.Sprintf("%s/reverse?format=json&lat=%f&lon=%f&addressdetails=1", g.baseURL, lat, lon)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("creating request: %w", err)
 	}
 	req.Header.Set("User-Agent", "MatcherBot/1.0")
 
-	resp, err := httpClient.Do(req)
+	resp, err := g.client.Do(req)
 	if err != nil {
-		log.Printf("geocoding HTTP error: %v", err)
-		return nil, nil
+		return nil, fmt.Errorf("geocoding HTTP request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("geocoding: non-200 status %d", resp.StatusCode)
-		return nil, nil
+		return nil, fmt.Errorf("geocoding: unexpected status %d", resp.StatusCode)
 	}
 
 	var nr nominatimResponse
 	if err := json.NewDecoder(resp.Body).Decode(&nr); err != nil {
-		log.Printf("geocoding: decode error: %v", err)
-		return nil, nil
+		return nil, fmt.Errorf("geocoding: decode response: %w", err)
 	}
 
 	city := nr.Address.City

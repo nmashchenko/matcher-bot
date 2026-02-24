@@ -2,22 +2,21 @@ package onboarding
 
 import (
 	"context"
-	"fmt"
-	"log"
+	"errors"
+	"log/slog"
 	"strconv"
 	"strings"
 	"time"
 
 	"matcher-bot/internal/database"
+	"matcher-bot/internal/messages"
 
 	pgvector "github.com/pgvector/pgvector-go"
 	tele "gopkg.in/telebot.v4"
 )
 
-type userStore interface {
-	GetByTelegramID(ctx context.Context, telegramID int64) (*database.User, error)
-	Update(ctx context.Context, telegramID int64, data *database.UserUpdateData) error
-}
+// ErrNotHandled indicates the message was not consumed by this handler.
+var ErrNotHandled = errors.New("not handled")
 
 type embedder interface {
 	Embed(ctx context.Context, text string) (pgvector.Vector, error)
@@ -26,11 +25,11 @@ type embedder interface {
 const cbGoal = "ob_goal"
 
 type Handler struct {
-	users userStore
+	users database.UserRepository
 	emb   embedder
 }
 
-func NewHandler(users userStore, emb embedder) *Handler {
+func NewHandler(users database.UserRepository, emb embedder) *Handler {
 	return &Handler{users: users, emb: emb}
 }
 
@@ -42,12 +41,12 @@ func (h *Handler) StartOnboarding(c tele.Context) error {
 	// Guard: don't restart if onboarding is already in progress or done.
 	if user, err := h.users.GetByTelegramID(context.Background(), c.Sender().ID); err == nil {
 		if user.OnboardingStep != database.StepNone {
-			log.Printf("user %d: onboarding already at step %q, skipping start", c.Sender().ID, user.OnboardingStep)
+			slog.Info("onboarding already in progress", "telegram_id", c.Sender().ID, "step", user.OnboardingStep)
 			return nil
 		}
 	}
 
-	log.Printf("user %d started onboarding", c.Sender().ID)
+	slog.Info("onboarding started", "telegram_id", c.Sender().ID)
 
 	save := &database.UserUpdateData{}
 
@@ -59,53 +58,53 @@ func (h *Handler) StartOnboarding(c tele.Context) error {
 
 	// Try to grab birthdate from Telegram and derive age.
 	if chat, err := c.Bot().ChatByID(c.Sender().ID); err == nil {
-		log.Printf("Parsed birthdate: %d", chat.Birthdate)
+		slog.Debug("parsed birthdate", "birthdate", chat.Birthdate)
 		age := calcAge(chat.Birthdate)
 		if age >= 16 && age <= 99 {
 			save.Age = &age
 			step := database.StepGoal
 			save.OnboardingStep = &step
 			if err := h.users.Update(context.Background(), c.Sender().ID, save); err != nil {
-				log.Printf("onboarding save error: %v", err)
-				return c.Send("\u274C Произошла ошибка. Попробуй /start заново.")
+				slog.Error("onboarding save", "error", err)
+				return c.Send(messages.RestartError)
 			}
 			return c.Send(
-				fmt.Sprintf("Мне удалось определить твой возраст из Telegram: %d. Что ищешь?", age),
+				messages.AgeFromTelegram(age),
 				h.buildGoalKeyboard(),
 			)
 		}
 	}
 
-	// Default path: ask for age.
 	step := database.StepAge
 	save.OnboardingStep = &step
 	if err := h.users.Update(context.Background(), c.Sender().ID, save); err != nil {
-		log.Printf("onboarding save step error: %v", err)
-		return c.Send("\u274C Произошла ошибка. Попробуй /start заново.")
+		slog.Error("onboarding save step", "error", err)
+		return c.Send(messages.RestartError)
 	}
-	return c.Send("Сколько тебе лет?")
+	return c.Send(messages.AskAge)
 }
 
 func (h *Handler) ResumeOnboarding(c tele.Context, step database.OnboardingStep) error {
 	switch step {
 	case database.StepAge:
-		return c.Send("Сколько тебе лет?")
+		return c.Send(messages.AskAge)
 	case database.StepGoal:
-		return c.Send("Что ищешь?", h.buildGoalKeyboard())
+		return c.Send(messages.AskGoal, h.buildGoalKeyboard())
 	case database.StepBio:
-		return c.Send("Расскажи о себе в 2-3 предложениях:")
+		return c.Send(messages.AskBio)
 	case database.StepLookingFor:
-		return c.Send("Опиши, кого ищешь или что для тебя важно в общении:")
+		return c.Send(messages.AskLookingFor)
 	default:
 		return nil
 	}
 }
 
-// OnText handles text input during onboarding. Returns (handled, error).
-func (h *Handler) OnText(c tele.Context) (bool, error) {
+// OnText handles text input during onboarding.
+// Returns nil on success, or ErrNotHandled if the message was not consumed.
+func (h *Handler) OnText(c tele.Context) error {
 	user, err := h.users.GetByTelegramID(context.Background(), c.Sender().ID)
 	if err != nil {
-		return false, nil
+		return ErrNotHandled
 	}
 
 	switch user.OnboardingStep {
@@ -116,58 +115,61 @@ func (h *Handler) OnText(c tele.Context) (bool, error) {
 	case database.StepLookingFor:
 		return h.onLookingFor(c)
 	default:
-		return false, nil
+		return ErrNotHandled
 	}
 }
 
-func (h *Handler) onAge(c tele.Context) (bool, error) {
+func (h *Handler) onAge(c tele.Context) error {
 	text := strings.TrimSpace(c.Text())
 	age, err := strconv.Atoi(text)
 	if err != nil || age < 16 || age > 99 {
-		return true, c.Send("Введи возраст от 16 до 99.")
+		return c.Send(messages.InvalidAge)
 	}
 
 	step := database.StepGoal
 	if err := h.users.Update(context.Background(), c.Sender().ID, &database.UserUpdateData{Age: &age, OnboardingStep: &step}); err != nil {
-		log.Printf("onboarding save age error: %v", err)
-		return true, c.Send("\u274C Произошла ошибка. Попробуй /start заново.")
+		slog.Error("onboarding save age", "error", err)
+		return c.Send(messages.RestartError)
 	}
 
-	return true, c.Send("Что ищешь?", h.buildGoalKeyboard())
+	return c.Send(messages.AskGoal, h.buildGoalKeyboard())
 }
 
 func (h *Handler) onGoal(c tele.Context) error {
 	user, err := h.users.GetByTelegramID(context.Background(), c.Sender().ID)
 	if err != nil {
-		log.Printf("onboarding get user error: %v", err)
-		return c.Respond(&tele.CallbackResponse{Text: "Ошибка, попробуй /start."})
+		slog.Error("onboarding get user", "error", err)
+		return c.Respond(&tele.CallbackResponse{Text: messages.CallbackError})
 	}
 	if user.OnboardingStep != database.StepGoal {
-		return c.Respond(&tele.CallbackResponse{Text: "Этот шаг уже пройден."})
+		return c.Respond(&tele.CallbackResponse{Text: messages.StepAlready})
 	}
 
 	goal := database.Goal(c.Callback().Data)
+	if !ValidGoal(goal) {
+		return c.Respond(&tele.CallbackResponse{Text: messages.UnknownGoal})
+	}
 	step := database.StepBio
 	if err := h.users.Update(context.Background(), c.Sender().ID, &database.UserUpdateData{Goal: &goal, OnboardingStep: &step}); err != nil {
-		log.Printf("onboarding save goal error: %v", err)
-		return c.Send("\u274C Произошла ошибка. Попробуй /start заново.")
+		slog.Error("onboarding save goal", "error", err)
+		return c.Send(messages.RestartError)
 	}
 
 	_ = c.Respond()
 	_ = c.Delete()
-	return c.Send("Расскажи о себе в 2-3 предложениях:")
+	return c.Send(messages.AskBio)
 }
 
-func (h *Handler) onBio(c tele.Context) (bool, error) {
+func (h *Handler) onBio(c tele.Context) error {
 	text := strings.TrimSpace(c.Text())
 	if len([]rune(text)) < 20 {
-		return true, c.Send("Слишком коротко — напиши хотя бы 20 символов.")
+		return c.Send(messages.TooShort)
 	}
 
 	vec, err := h.emb.Embed(context.Background(), text)
 	if err != nil {
-		log.Printf("onboarding embed bio error: %v", err)
-		return true, c.Send("\u274C Произошла ошибка. Попробуй ещё раз.")
+		slog.Error("onboarding embed bio", "error", err)
+		return c.Send(messages.GenericError)
 	}
 
 	step := database.StepLookingFor
@@ -176,23 +178,23 @@ func (h *Handler) onBio(c tele.Context) (bool, error) {
 		BioEmbedding:   &vec,
 		OnboardingStep: &step,
 	}); err != nil {
-		log.Printf("onboarding save bio error: %v", err)
-		return true, c.Send("\u274C Произошла ошибка. Попробуй /start заново.")
+		slog.Error("onboarding save bio", "error", err)
+		return c.Send(messages.RestartError)
 	}
 
-	return true, c.Send("Опиши, кого ищешь или что для тебя важно в общении:")
+	return c.Send(messages.AskLookingFor)
 }
 
-func (h *Handler) onLookingFor(c tele.Context) (bool, error) {
+func (h *Handler) onLookingFor(c tele.Context) error {
 	text := strings.TrimSpace(c.Text())
 	if len([]rune(text)) < 20 {
-		return true, c.Send("Слишком коротко — напиши хотя бы 20 символов.")
+		return c.Send(messages.TooShort)
 	}
 
 	vec, err := h.emb.Embed(context.Background(), text)
 	if err != nil {
-		log.Printf("onboarding embed looking_for error: %v", err)
-		return true, c.Send("\u274C Произошла ошибка. Попробуй ещё раз.")
+		slog.Error("onboarding embed looking_for", "error", err)
+		return c.Send(messages.GenericError)
 	}
 
 	step := database.StepDone
@@ -201,11 +203,11 @@ func (h *Handler) onLookingFor(c tele.Context) (bool, error) {
 		LookingForEmbedding: &vec,
 		OnboardingStep:      &step,
 	}); err != nil {
-		log.Printf("onboarding save looking_for error: %v", err)
-		return true, c.Send("\u274C Произошла ошибка. Попробуй /start заново.")
+		slog.Error("onboarding save looking_for", "error", err)
+		return c.Send(messages.RestartError)
 	}
 
-	return true, c.Send("Окей, я запомнил. Скоро начнём подбор!")
+	return c.Send(messages.OnboardingDone)
 }
 
 func (h *Handler) buildGoalKeyboard() *tele.ReplyMarkup {

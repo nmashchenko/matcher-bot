@@ -1,13 +1,22 @@
 package geocoding
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 )
 
+func newTestGeocoder(t *testing.T, handler http.HandlerFunc) *Geocoder {
+	t.Helper()
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+	return &Geocoder{client: server.Client(), baseURL: server.URL}
+}
+
 func TestReverseGeocode_USA(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	t.Parallel()
+	g := newTestGeocoder(t, func(w http.ResponseWriter, r *http.Request) {
 		if ua := r.Header.Get("User-Agent"); ua != "MatcherBot/1.0" {
 			t.Errorf("User-Agent = %q; want MatcherBot/1.0", ua)
 		}
@@ -20,24 +29,11 @@ func TestReverseGeocode_USA(t *testing.T) {
 				"city": "San Francisco"
 			}
 		}`))
-	}))
-	defer server.Close()
+	})
 
-	origClient := httpClient
-	httpClient = server.Client()
-	defer func() { httpClient = origClient }()
-
-	// Override the URL by replacing the function temporarily
-	origFunc := reverseGeocodeURL
-	reverseGeocodeURL = func(lat, lon float64) string { return server.URL }
-	defer func() { reverseGeocodeURL = origFunc }()
-
-	result, err := ReverseGeocode(37.7749, -122.4194)
+	result, err := g.ReverseGeocode(context.Background(), 37.7749, -122.4194)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
-	}
-	if result == nil {
-		t.Fatal("expected result, got nil")
 	}
 	if !result.IsUSA {
 		t.Error("expected IsUSA = true")
@@ -51,7 +47,8 @@ func TestReverseGeocode_USA(t *testing.T) {
 }
 
 func TestReverseGeocode_NonUSA(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	t.Parallel()
+	g := newTestGeocoder(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{
 			"address": {
@@ -61,23 +58,11 @@ func TestReverseGeocode_NonUSA(t *testing.T) {
 				"city": "Berlin"
 			}
 		}`))
-	}))
-	defer server.Close()
+	})
 
-	origClient := httpClient
-	httpClient = server.Client()
-	defer func() { httpClient = origClient }()
-
-	origFunc := reverseGeocodeURL
-	reverseGeocodeURL = func(lat, lon float64) string { return server.URL }
-	defer func() { reverseGeocodeURL = origFunc }()
-
-	result, err := ReverseGeocode(52.52, 13.405)
+	result, err := g.ReverseGeocode(context.Background(), 52.52, 13.405)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
-	}
-	if result == nil {
-		t.Fatal("expected result, got nil")
 	}
 	if result.IsUSA {
 		t.Error("expected IsUSA = false")
@@ -85,7 +70,8 @@ func TestReverseGeocode_NonUSA(t *testing.T) {
 }
 
 func TestReverseGeocode_CityFallback(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	t.Parallel()
+	g := newTestGeocoder(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{
 			"address": {
@@ -95,18 +81,9 @@ func TestReverseGeocode_CityFallback(t *testing.T) {
 				"town": "Stowe"
 			}
 		}`))
-	}))
-	defer server.Close()
+	})
 
-	origClient := httpClient
-	httpClient = server.Client()
-	defer func() { httpClient = origClient }()
-
-	origFunc := reverseGeocodeURL
-	reverseGeocodeURL = func(lat, lon float64) string { return server.URL }
-	defer func() { reverseGeocodeURL = origFunc }()
-
-	result, err := ReverseGeocode(44.46, -72.68)
+	result, err := g.ReverseGeocode(context.Background(), 44.46, -72.68)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -116,24 +93,13 @@ func TestReverseGeocode_CityFallback(t *testing.T) {
 }
 
 func TestReverseGeocode_ServerError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	t.Parallel()
+	g := newTestGeocoder(t, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
-	}))
-	defer server.Close()
+	})
 
-	origClient := httpClient
-	httpClient = server.Client()
-	defer func() { httpClient = origClient }()
-
-	origFunc := reverseGeocodeURL
-	reverseGeocodeURL = func(lat, lon float64) string { return server.URL }
-	defer func() { reverseGeocodeURL = origFunc }()
-
-	result, err := ReverseGeocode(0, 0)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if result != nil {
-		t.Errorf("expected nil result on server error, got %+v", result)
+	_, err := g.ReverseGeocode(context.Background(), 0, 0)
+	if err == nil {
+		t.Fatal("expected error on server error, got nil")
 	}
 }

@@ -5,6 +5,7 @@ import (
 
 	"matcher-bot/internal/database"
 	"matcher-bot/internal/embeddings"
+	"matcher-bot/internal/geocoding"
 	"matcher-bot/internal/onboarding"
 	"matcher-bot/internal/verification"
 
@@ -22,7 +23,8 @@ func New(token string, db *bun.DB, openaiKey string) (*tele.Bot, error) {
 	}
 
 	userStore := database.NewUserStore(db)
-	verifSvc := verification.NewService(db)
+	geo := geocoding.NewGeocoder()
+	verifSvc := verification.NewService(userStore, geo)
 	embClient := embeddings.NewClient(openaiKey)
 	obHandler := onboarding.NewHandler(userStore, embClient)
 

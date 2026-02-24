@@ -36,6 +36,10 @@ const (
 	GoalMixed    Goal = "mixed"
 )
 
+func (s VerificationStatus) String() string { return string(s) }
+func (s OnboardingStep) String() string     { return string(s) }
+func (g Goal) String() string               { return string(g) }
+
 type User struct {
 	bun.BaseModel `bun:"table:users,alias:u"`
 
