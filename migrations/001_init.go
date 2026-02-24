@@ -9,19 +9,13 @@ import (
 
 func up001(ctx context.Context, db *bun.DB) error {
 	_, err := db.ExecContext(ctx, `
-		DO $$ BEGIN
-			CREATE TYPE verification_status AS ENUM ('PENDING', 'VERIFIED', 'UNVERIFIED', 'REJECTED');
-		EXCEPTION
-			WHEN duplicate_object THEN null;
-		END $$;
-
 		CREATE TABLE IF NOT EXISTS users (
 			id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 			telegram_id         BIGINT UNIQUE NOT NULL,
 			username            TEXT,
 			first_name          TEXT,
 			last_name           TEXT,
-			verification_status verification_status NOT NULL DEFAULT 'PENDING',
+			user_state          TEXT NOT NULL DEFAULT 'unverified',
 			latitude            DOUBLE PRECISION,
 			longitude           DOUBLE PRECISION,
 			country             TEXT,
@@ -41,7 +35,6 @@ func up001(ctx context.Context, db *bun.DB) error {
 func down001(ctx context.Context, db *bun.DB) error {
 	_, err := db.ExecContext(ctx, `
 		DROP TABLE IF EXISTS users;
-		DROP TYPE IF EXISTS verification_status;
 	`)
 	if err != nil {
 		return fmt.Errorf("migration 001 down: %w", err)

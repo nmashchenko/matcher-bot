@@ -102,8 +102,7 @@ func TestUpdate_Age(t *testing.T) {
 	users.FindOrCreate(ctx, 900010, &username, nil, nil)
 
 	age := 25
-	step := StepGoal
-	err := users.Update(ctx, 900010, &UserUpdateData{Age: &age, OnboardingStep: &step})
+	err := users.Update(ctx, 900010, &UserUpdateData{Age: &age})
 	if err != nil {
 		t.Fatalf("Update age: %v", err)
 	}
@@ -114,9 +113,6 @@ func TestUpdate_Age(t *testing.T) {
 	}
 	if user.Age == nil || *user.Age != 25 {
 		t.Errorf("expected age 25, got %v", user.Age)
-	}
-	if user.OnboardingStep != StepGoal {
-		t.Errorf("expected step %s, got %s", StepGoal, user.OnboardingStep)
 	}
 }
 
@@ -130,8 +126,7 @@ func TestUpdate_Bio(t *testing.T) {
 	users.FindOrCreate(ctx, 900011, &username, nil, nil)
 
 	bio := "Привет, я люблю путешествовать и готовить."
-	step := StepLookingFor
-	err := users.Update(ctx, 900011, &UserUpdateData{Bio: &bio, OnboardingStep: &step})
+	err := users.Update(ctx, 900011, &UserUpdateData{Bio: &bio})
 	if err != nil {
 		t.Fatalf("Update bio: %v", err)
 	}
@@ -143,7 +138,28 @@ func TestUpdate_Bio(t *testing.T) {
 	if user.Bio == nil || *user.Bio != bio {
 		t.Errorf("expected bio %q, got %v", bio, user.Bio)
 	}
-	if user.OnboardingStep != StepLookingFor {
-		t.Errorf("expected step %s, got %s", StepLookingFor, user.OnboardingStep)
+}
+
+func TestUpdate_UserState(t *testing.T) {
+	db := setupTestDB(t)
+	users := NewUserStore(db)
+	ctx := context.Background()
+
+	db.NewDelete().TableExpr("users").Where("telegram_id = ?", 900012).Exec(ctx)
+	username := "statetest"
+	users.FindOrCreate(ctx, 900012, &username, nil, nil)
+
+	state := StateOnboarding
+	err := users.Update(ctx, 900012, &UserUpdateData{UserState: &state})
+	if err != nil {
+		t.Fatalf("Update state: %v", err)
+	}
+
+	user, err := users.GetByTelegramID(ctx, 900012)
+	if err != nil {
+		t.Fatalf("GetByTelegramID: %v", err)
+	}
+	if user.UserState != StateOnboarding {
+		t.Errorf("expected state %s, got %s", StateOnboarding, user.UserState)
 	}
 }

@@ -72,9 +72,6 @@ func TestVerifyByLocation_NonUSA(t *testing.T) {
 	if result.Verified {
 		t.Error("expected Verified = false")
 	}
-	if result.Status != database.StatusRejected {
-		t.Errorf("Status = %q; want REJECTED", result.Status)
-	}
 }
 
 func TestVerifyByLocation_GeocodingFailed(t *testing.T) {
@@ -89,26 +86,5 @@ func TestVerifyByLocation_GeocodingFailed(t *testing.T) {
 	}
 	if result.Error != "geocoding_failed" {
 		t.Errorf("Error = %q; want geocoding_failed", result.Error)
-	}
-}
-
-func TestGetVerificationStatus(t *testing.T) {
-	state := "California"
-	city := "SF"
-	svc := NewService(
-		&mockUserStore{user: &database.User{
-			VerificationStatus: database.StatusVerified,
-			State:              &state,
-			City:               &city,
-		}},
-		nil,
-	)
-
-	status, err := svc.GetVerificationStatus(context.Background(), 12345)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if status.Status != database.StatusVerified {
-		t.Errorf("Status = %q; want VERIFIED", status.Status)
 	}
 }

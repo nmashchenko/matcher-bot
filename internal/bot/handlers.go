@@ -26,26 +26,21 @@ func handleStart(userStore database.UserRepository, verifHandler *verification.H
 			return c.Send(messages.GenericError)
 		}
 
-		switch user.VerificationStatus {
-		case database.StatusVerified:
-			switch user.OnboardingStep {
-			case database.StepDone:
-				city, state := "", ""
-				if user.City != nil {
-					city = *user.City
-				}
-				if user.State != nil {
-					state = *user.State
-				}
-				return c.Send(
-					messages.WelcomeBack(city, state),
-					&tele.ReplyMarkup{RemoveKeyboard: true},
-				)
-			case database.StepNone:
-				return obHandler.StartOnboarding(c)
-			default:
-				return obHandler.ResumeOnboarding(c, user.OnboardingStep)
+		switch user.UserState {
+		case database.StateReady:
+			city, state := "", ""
+			if user.City != nil {
+				city = *user.City
 			}
+			if user.State != nil {
+				state = *user.State
+			}
+			return c.Send(
+				messages.WelcomeBack(city, state),
+				&tele.ReplyMarkup{RemoveKeyboard: true},
+			)
+		case database.StateOnboarding:
+			return obHandler.ResumeOnboarding(c, user)
 		default:
 			return verifHandler.SendVerificationPrompt(c)
 		}
@@ -59,9 +54,7 @@ func handleText(userStore database.UserRepository, obHandler *onboarding.Handler
 			return c.Send(messages.StartPrompt)
 		}
 
-		if user.VerificationStatus == database.StatusVerified &&
-			user.OnboardingStep != database.StepNone &&
-			user.OnboardingStep != database.StepDone {
+		if user.UserState == database.StateOnboarding {
 			err = obHandler.OnText(c)
 			if !errors.Is(err, onboarding.ErrNotHandled) {
 				return err

@@ -10,16 +10,9 @@ import (
 
 type VerifyResult struct {
 	Verified bool
-	Status   database.VerificationStatus
-	State    string
 	City     string
+	State    string
 	Error    string // "geocoding_failed" or ""
-}
-
-type StatusResult struct {
-	Status database.VerificationStatus
-	State  string
-	City   string
 }
 
 type geocoder interface {
@@ -41,56 +34,28 @@ func (s *Service) VerifyByLocation(ctx context.Context, telegramID int64, lat, l
 		return &VerifyResult{Verified: false, Error: "geocoding_failed"}, nil
 	}
 
-	now := time.Now()
-
 	if geo.IsUSA {
-		status := database.StatusVerified
+		now := time.Now()
+		state := database.StateOnboarding
 		err = s.users.Update(ctx, telegramID, &database.UserUpdateData{
-			VerificationStatus: &status,
-			Latitude:           &lat,
-			Longitude:          &lon,
-			Country:            &geo.Country,
-			State:              &geo.State,
-			City:               &geo.City,
-			VerifiedAt:         &now,
+			UserState: &state,
+			Latitude:  &lat,
+			Longitude: &lon,
+			Country:   &geo.Country,
+			State:     &geo.State,
+			City:      &geo.City,
+			VerifiedAt: &now,
 		})
 		if err != nil {
 			return nil, err
 		}
 		return &VerifyResult{
 			Verified: true,
-			Status:   database.StatusVerified,
 			State:    geo.State,
 			City:     geo.City,
 		}, nil
 	}
 
-	// Not in USA
-	status := database.StatusRejected
-	err = s.users.Update(ctx, telegramID, &database.UserUpdateData{
-		VerificationStatus: &status,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return &VerifyResult{Verified: false, Status: database.StatusRejected}, nil
-}
-
-func (s *Service) GetVerificationStatus(ctx context.Context, telegramID int64) (*StatusResult, error) {
-	user, err := s.users.GetByTelegramID(ctx, telegramID)
-	if err != nil {
-		return nil, err
-	}
-
-	result := &StatusResult{
-		Status: user.VerificationStatus,
-	}
-	if user.State != nil {
-		result.State = *user.State
-	}
-	if user.City != nil {
-		result.City = *user.City
-	}
-	return result, nil
+	// Not in USA — user stays unverified, can retry
+	return &VerifyResult{Verified: false}, nil
 }

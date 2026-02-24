@@ -37,5 +37,11 @@ func New(token string, db *bun.DB, openaiKey string) (*tele.Bot, error) {
 
 	b.Handle(tele.OnText, handleText(userStore, obHandler))
 
+	_ = b.SetCommands([]tele.Command{
+		{Text: "start", Description: "Начать / перезапустить бота"},
+		{Text: "match", Description: "Посмотреть подобранных людей"},
+		{Text: "profile", Description: "Мой профиль"},
+	})
+
 	return b, nil
 }

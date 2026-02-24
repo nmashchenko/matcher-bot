@@ -29,7 +29,7 @@ const (
 	AskLookingFor  = "Опиши, кого ищешь или что для тебя важно в общении:"
 	InvalidAge     = "Введи возраст от 16 до 99."
 	TooShort       = "Слишком коротко — напиши хотя бы 20 символов."
-	OnboardingDone = "Окей, я запомнил. Скоро начнём подбор!"
+	OnboardingDone = "" // unused, kept for reference
 	StepAlready    = "Этот шаг уже пройден."
 	UnknownGoal    = "Неизвестный вариант."
 	CallbackError  = "Ошибка, попробуй /start."
@@ -47,4 +47,18 @@ func WelcomeBack(city, state string) string {
 
 func AgeFromTelegram(age int) string {
 	return fmt.Sprintf("Мне удалось определить твой возраст из Telegram: %d. Что ищешь?", age)
+}
+
+func ProfileComplete(name string, age int, goal, bio, lookingFor, city, state string) string {
+	return fmt.Sprintf(
+		"\u2728 Профиль готов! Уже ищу идеальные совпадения для тебя...\n\n"+
+			"\U0001F464 %s, %d\n"+
+			"\U0001F4CD %s, %s\n"+
+			"\U0001F3AF %s\n\n"+
+			"\U0001F4AC О себе:\n%s\n\n"+
+			"\U0001F50D Ищу:\n%s\n\n"+
+			"\U0001F525 Мы уже нашли несколько отличных совпадений!\n\n"+
+			"Жми /match чтобы посмотреть, кого мы подобрали \U0001F447",
+		name, age, city, state, goal, bio, lookingFor,
+	)
 }

@@ -23,3 +23,13 @@ func ValidGoal(g database.Goal) bool {
 	}
 	return false
 }
+
+// GoalLabel returns the human-readable label for a goal key.
+func GoalLabel(g database.Goal) string {
+	for _, opt := range GoalOptions {
+		if opt.Key == g {
+			return opt.Label
+		}
+	}
+	return string(g)
+}

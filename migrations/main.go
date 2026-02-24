@@ -132,8 +132,11 @@ func main() {
 
 	case "reset":
 		fmt.Println("Resetting database...")
-		if err := runDown(ctx, db); err != nil {
-			log.Fatal(err)
+		if _, err := db.ExecContext(ctx, "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"); err != nil {
+			log.Fatalf("drop schema: %v", err)
+		}
+		if err := ensureMigrationsTable(ctx, db); err != nil {
+			log.Fatalf("ensure migrations table: %v", err)
 		}
 		if err := runUp(ctx, db); err != nil {
 			log.Fatal(err)

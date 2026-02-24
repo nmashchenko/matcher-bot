@@ -17,8 +17,7 @@ func up002(ctx context.Context, db *bun.DB) error {
 			ADD COLUMN IF NOT EXISTS bio                     TEXT,
 			ADD COLUMN IF NOT EXISTS looking_for             TEXT,
 			ADD COLUMN IF NOT EXISTS bio_embedding           vector(1536),
-			ADD COLUMN IF NOT EXISTS looking_for_embedding   vector(1536),
-			ADD COLUMN IF NOT EXISTS onboarding_step         TEXT NOT NULL DEFAULT 'none';
+			ADD COLUMN IF NOT EXISTS looking_for_embedding   vector(1536);
 		CREATE INDEX IF NOT EXISTS idx_users_bio_embedding ON users USING hnsw (bio_embedding vector_cosine_ops);
 		CREATE INDEX IF NOT EXISTS idx_users_looking_for_embedding ON users USING hnsw (looking_for_embedding vector_cosine_ops);
 	`)
@@ -39,8 +38,7 @@ func down002(ctx context.Context, db *bun.DB) error {
 			DROP COLUMN IF EXISTS bio,
 			DROP COLUMN IF EXISTS looking_for,
 			DROP COLUMN IF EXISTS bio_embedding,
-			DROP COLUMN IF EXISTS looking_for_embedding,
-			DROP COLUMN IF EXISTS onboarding_step;
+			DROP COLUMN IF EXISTS looking_for_embedding;
 		DROP EXTENSION IF EXISTS vector;
 	`)
 	if err != nil {

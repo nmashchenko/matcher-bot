@@ -13,7 +13,7 @@ import (
 
 // UpdateData holds optional user fields to update. Nil means "don't touch".
 type UserUpdateData struct {
-	VerificationStatus  *VerificationStatus
+	UserState           *UserState
 	Latitude            *float64
 	Longitude           *float64
 	Country             *string
@@ -27,7 +27,6 @@ type UserUpdateData struct {
 	LookingFor          *string
 	BioEmbedding        *pgvector.Vector
 	LookingForEmbedding *pgvector.Vector
-	OnboardingStep      *OnboardingStep
 }
 
 // UserRepository is the interface satisfied by UserStore.
@@ -106,8 +105,8 @@ func (s *UserStore) Update(ctx context.Context, telegramID int64, data *UserUpda
 		Where("telegram_id = ?", telegramID).
 		Set("updated_at = ?", time.Now())
 
-	if data.VerificationStatus != nil {
-		q = q.Set("verification_status = ?", string(*data.VerificationStatus))
+	if data.UserState != nil {
+		q = q.Set("user_state = ?", string(*data.UserState))
 	}
 	if data.Latitude != nil {
 		q = q.Set("latitude = ?", *data.Latitude)
@@ -147,9 +146,6 @@ func (s *UserStore) Update(ctx context.Context, telegramID int64, data *UserUpda
 	}
 	if data.LookingForEmbedding != nil {
 		q = q.Set("looking_for_embedding = ?", *data.LookingForEmbedding)
-	}
-	if data.OnboardingStep != nil {
-		q = q.Set("onboarding_step = ?", string(*data.OnboardingStep))
 	}
 
 	_, err := q.Exec(ctx)

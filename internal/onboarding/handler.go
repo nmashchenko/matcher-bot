@@ -38,12 +38,10 @@ func (h *Handler) Register(b *tele.Bot) {
 }
 
 func (h *Handler) StartOnboarding(c tele.Context) error {
-	// Guard: don't restart if onboarding is already in progress or done.
-	if user, err := h.users.GetByTelegramID(context.Background(), c.Sender().ID); err == nil {
-		if user.OnboardingStep != database.StepNone {
-			slog.Info("onboarding already in progress", "telegram_id", c.Sender().ID, "step", user.OnboardingStep)
-			return nil
-		}
+	// Guard: don't restart if onboarding is already in progress (age already set).
+	if user, err := h.users.GetByTelegramID(context.Background(), c.Sender().ID); err == nil && user.Age != nil {
+		slog.Info("onboarding already started, resuming", "telegram_id", c.Sender().ID)
+		return h.ResumeOnboarding(c, user)
 	}
 
 	slog.Info("onboarding started", "telegram_id", c.Sender().ID)
@@ -62,8 +60,6 @@ func (h *Handler) StartOnboarding(c tele.Context) error {
 		age := calcAge(chat.Birthdate)
 		if age >= 16 && age <= 99 {
 			save.Age = &age
-			step := database.StepGoal
-			save.OnboardingStep = &step
 			if err := h.users.Update(context.Background(), c.Sender().ID, save); err != nil {
 				slog.Error("onboarding save", "error", err)
 				return c.Send(messages.RestartError)
@@ -75,24 +71,25 @@ func (h *Handler) StartOnboarding(c tele.Context) error {
 		}
 	}
 
-	step := database.StepAge
-	save.OnboardingStep = &step
-	if err := h.users.Update(context.Background(), c.Sender().ID, save); err != nil {
-		slog.Error("onboarding save step", "error", err)
-		return c.Send(messages.RestartError)
+	// Save avatar if we got one, then ask for age.
+	if save.AvatarFileID != nil {
+		if err := h.users.Update(context.Background(), c.Sender().ID, save); err != nil {
+			slog.Error("onboarding save avatar", "error", err)
+			return c.Send(messages.RestartError)
+		}
 	}
 	return c.Send(messages.AskAge)
 }
 
-func (h *Handler) ResumeOnboarding(c tele.Context, step database.OnboardingStep) error {
-	switch step {
-	case database.StepAge:
+func (h *Handler) ResumeOnboarding(c tele.Context, user *database.User) error {
+	switch {
+	case user.Age == nil:
 		return c.Send(messages.AskAge)
-	case database.StepGoal:
+	case user.Goal == nil:
 		return c.Send(messages.AskGoal, h.buildGoalKeyboard())
-	case database.StepBio:
+	case user.Bio == nil:
 		return c.Send(messages.AskBio)
-	case database.StepLookingFor:
+	case user.LookingFor == nil:
 		return c.Send(messages.AskLookingFor)
 	default:
 		return nil
@@ -107,12 +104,14 @@ func (h *Handler) OnText(c tele.Context) error {
 		return ErrNotHandled
 	}
 
-	switch user.OnboardingStep {
-	case database.StepAge:
+	switch {
+	case user.Age == nil:
 		return h.onAge(c)
-	case database.StepBio:
+	case user.Goal == nil:
+		return ErrNotHandled // waiting for callback
+	case user.Bio == nil:
 		return h.onBio(c)
-	case database.StepLookingFor:
+	case user.LookingFor == nil:
 		return h.onLookingFor(c)
 	default:
 		return ErrNotHandled
@@ -126,8 +125,7 @@ func (h *Handler) onAge(c tele.Context) error {
 		return c.Send(messages.InvalidAge)
 	}
 
-	step := database.StepGoal
-	if err := h.users.Update(context.Background(), c.Sender().ID, &database.UserUpdateData{Age: &age, OnboardingStep: &step}); err != nil {
+	if err := h.users.Update(context.Background(), c.Sender().ID, &database.UserUpdateData{Age: &age}); err != nil {
 		slog.Error("onboarding save age", "error", err)
 		return c.Send(messages.RestartError)
 	}
@@ -141,7 +139,7 @@ func (h *Handler) onGoal(c tele.Context) error {
 		slog.Error("onboarding get user", "error", err)
 		return c.Respond(&tele.CallbackResponse{Text: messages.CallbackError})
 	}
-	if user.OnboardingStep != database.StepGoal {
+	if user.Goal != nil {
 		return c.Respond(&tele.CallbackResponse{Text: messages.StepAlready})
 	}
 
@@ -149,8 +147,7 @@ func (h *Handler) onGoal(c tele.Context) error {
 	if !ValidGoal(goal) {
 		return c.Respond(&tele.CallbackResponse{Text: messages.UnknownGoal})
 	}
-	step := database.StepBio
-	if err := h.users.Update(context.Background(), c.Sender().ID, &database.UserUpdateData{Goal: &goal, OnboardingStep: &step}); err != nil {
+	if err := h.users.Update(context.Background(), c.Sender().ID, &database.UserUpdateData{Goal: &goal}); err != nil {
 		slog.Error("onboarding save goal", "error", err)
 		return c.Send(messages.RestartError)
 	}
@@ -172,11 +169,9 @@ func (h *Handler) onBio(c tele.Context) error {
 		return c.Send(messages.GenericError)
 	}
 
-	step := database.StepLookingFor
 	if err := h.users.Update(context.Background(), c.Sender().ID, &database.UserUpdateData{
-		Bio:            &text,
-		BioEmbedding:   &vec,
-		OnboardingStep: &step,
+		Bio:          &text,
+		BioEmbedding: &vec,
 	}); err != nil {
 		slog.Error("onboarding save bio", "error", err)
 		return c.Send(messages.RestartError)
@@ -197,17 +192,58 @@ func (h *Handler) onLookingFor(c tele.Context) error {
 		return c.Send(messages.GenericError)
 	}
 
-	step := database.StepDone
+	state := database.StateReady
 	if err := h.users.Update(context.Background(), c.Sender().ID, &database.UserUpdateData{
 		LookingFor:          &text,
 		LookingForEmbedding: &vec,
-		OnboardingStep:      &step,
+		UserState:           &state,
 	}); err != nil {
 		slog.Error("onboarding save looking_for", "error", err)
 		return c.Send(messages.RestartError)
 	}
 
-	return c.Send(messages.OnboardingDone)
+	user, err := h.users.GetByTelegramID(context.Background(), c.Sender().ID)
+	if err != nil {
+		slog.Error("onboarding fetch completed user", "error", err)
+		return c.Send(messages.RestartError)
+	}
+
+	name := c.Sender().FirstName
+	age := 0
+	if user.Age != nil {
+		age = *user.Age
+	}
+	goalLabel := ""
+	if user.Goal != nil {
+		goalLabel = GoalLabel(*user.Goal)
+	}
+	bio := ""
+	if user.Bio != nil {
+		bio = *user.Bio
+	}
+	lookingFor := ""
+	if user.LookingFor != nil {
+		lookingFor = *user.LookingFor
+	}
+	city, geoState := "", ""
+	if user.City != nil {
+		city = *user.City
+	}
+	if user.State != nil {
+		geoState = *user.State
+	}
+
+	caption := messages.ProfileComplete(name, age, goalLabel, bio, lookingFor, city, geoState)
+
+	if user.AvatarFileID != nil {
+		photo := &tele.Photo{
+			File:    tele.File{FileID: *user.AvatarFileID},
+			Caption: caption,
+		}
+		return c.Send(photo)
+	}
+
+	return c.Send(caption)
 }
 
 func (h *Handler) buildGoalKeyboard() *tele.ReplyMarkup {

@@ -11,7 +11,6 @@ import (
 
 type verificationService interface {
 	VerifyByLocation(ctx context.Context, telegramID int64, lat, lon float64) (*VerifyResult, error)
-	GetVerificationStatus(ctx context.Context, telegramID int64) (*StatusResult, error)
 }
 
 type Handler struct {
