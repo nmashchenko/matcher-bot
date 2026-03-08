@@ -1,79 +1,205 @@
 package messages
 
-import "fmt"
-
-// Errors
-const (
-	GenericError   = "\u274C Произошла ошибка. Попробуй ещё раз."
-	RestartError   = "\u274C Произошла ошибка. Попробуй /start заново."
-	GeocodingError = "\u274C Не удалось определить местоположение. Попробуй ещё раз."
-	StartPrompt    = "Напиши /start чтобы начать."
-	UnknownCommand = "Не понял тебя. Выбери, что хочешь сделать, или напиши /start."
+import (
+	"fmt"
+	"strings"
+	"time"
 )
 
-// Verification
 const (
-	VerificationIntro = "Привет! Я — Matcher Bot. Помогу найти интересных людей из СНГ рядом с тобой в США.\n\n" +
+	GenericError   = "\u274c Произошла ошибка. Попробуй ещё раз."
+	RestartError   = "\u274c Произошла ошибка. Попробуй /start заново."
+	GeocodingError = "\u274c Не удалось определить местоположение. Попробуй ещё раз."
+	StartPrompt    = "Напиши /start чтобы начать."
+	ShareLocationFirst    = "Сначала поделись геолокацией, чтобы я мог тебя верифицировать."
+	FinishOnboardingFirst = "Сначала заверши регистрацию — напиши /start."
+	UnknownCommand        = "Не понял тебя. Напиши /events, /create или /myevents."
+)
+
+const (
+	VerificationIntro = "Привет! Я — бот для событий. Помогу найти интересные мероприятия рядом с тобой в США.\n\n" +
 		"Для начала мне нужно убедиться, что ты в США. Поделись геолокацией — это одноразово и безопасно."
-	VerificationButton = "\U0001F4CD Поделиться геолокацией"
-	CheckingLocation   = "\u23F3 Проверяю твою геолокацию..."
-	NotInUSA           = "\u274C Похоже, ты не в США. Этот бот пока работает только для людей в Штатах.\n\n" +
+	VerificationButton = "\U0001f4cd Поделиться геолокацией"
+	CheckingLocation   = "\u23f3 Проверяю твою геолокацию..."
+	NotInUSA           = "\u274c Похоже, ты не в США. Этот бот пока работает только для людей в Штатах.\n\n" +
 		"Если ты считаешь, что это ошибка — попробуй отправить геолокацию ещё раз."
 )
 
-// Sticker
-const WelcomeSticker = "CAACAgIAAxkBAAIBKWmdA6Gwvt5-6TpbRIyrKAdxPl0vAAL5HgACv2nBSsMzoEX8LyRUOgQ" // send any sticker to bot
+const WelcomeSticker = "CAACAgIAAxkBAAIBKWmdA6Gwvt5-6TpbRIyrKAdxPl0vAAL5HgACv2nBSsMzoEX8LyRUOgQ"
 
-// Onboarding
-const (
-	InvalidAge     = "Введи возраст от 16 до 99."
-	TooShort       = "Слишком коротко — напиши хотя бы 20 символов."
-	OnboardingDone = "" // unused, kept for reference
-	StepAlready    = "Этот шаг уже пройден."
-	UnknownGoal    = "Неизвестный вариант."
-	CallbackError  = "Ошибка, попробуй /start."
-)
-
-// Formatted messages
+const InvalidAge = "Введи возраст от 16 до 99."
 
 func Verified(city, state string) string {
 	return fmt.Sprintf("\u2705 Подтверждено! Ты в %s, %s.", city, state)
-}
-
-func WelcomeBack(city, state string) string {
-	return fmt.Sprintf("С возвращением! Ты уже зарегистрирован (%s, %s). Скоро здесь будет подбор.", city, state)
-}
-
-func AgeFromTelegram(age int, city, state string) string {
-	return fmt.Sprintf("Ты в %s, %s — и тебе %d. Что ищешь?", city, state, age)
 }
 
 func AskAge(city, state string) string {
 	return fmt.Sprintf("Круто, ты в %s, %s! Сколько тебе лет?", city, state)
 }
 
-func AskGoal(age int, city string) string {
-	return fmt.Sprintf("Отлично, %d лет в %s — расскажи, что ищешь?", age, city)
+func AgeFromTelegram(age int, city, state string) string {
+	return fmt.Sprintf("Ты в %s, %s — и тебе %d. Добро пожаловать!", city, state, age)
 }
 
-func AskBio(goalLabel string) string {
-	return fmt.Sprintf("Цель: %s — отлично! Расскажи о себе в 2-3 предложениях:", goalLabel)
-}
-
-func AskLookingFor(name string) string {
-	return fmt.Sprintf("Спасибо, %s! Теперь опиши, кого ищешь или что для тебя важно в общении:", name)
-}
-
-func ProfileComplete(name string, age int, goal, bio, lookingFor, city, state string) string {
+func OnboardingComplete(name string, age int, city, state string) string {
 	return fmt.Sprintf(
-		"\u2728 Профиль готов! Уже ищу идеальные совпадения для тебя...\n\n"+
-			"\U0001F464 %s, %d\n"+
-			"\U0001F4CD %s, %s\n"+
-			"\U0001F3AF %s\n\n"+
-			"\U0001F4AC О себе:\n%s\n\n"+
-			"\U0001F50D Ищу:\n%s\n\n"+
-			"\U0001F525 Мы уже нашли несколько отличных совпадений!\n\n"+
-			"Жми /match чтобы посмотреть, кого мы подобрали \U0001F447",
-		name, age, city, state, goal, bio, lookingFor,
+		"\u2728 Готово, %s! Тебе %d, ты в %s, %s.\n\n"+
+			"Вот что можно делать:\n"+
+			"/events — смотреть события рядом\n"+
+			"/create — создать своё событие\n"+
+			"/myevents — мои события",
+		name, age, city, state,
+	)
+}
+
+func MainMenu(city, state string) string {
+	return fmt.Sprintf(
+		"С возвращением! Ты в %s, %s.\n\n"+
+			"/events — смотреть события рядом\n"+
+			"/create — создать своё событие\n"+
+			"/myevents — мои события",
+		city, state,
+	)
+}
+
+const (
+	CreateStart       = "Создаём событие! Выбери тип:"
+	CreateAskTitle    = "Придумай название для события:"
+	CreateAskDesc     = "Добавь описание (или отправь \"-\" чтобы пропустить):"
+	CreateAskTime     = "Когда начало? Формат: ДД.ММ ЧЧ:ММ\nНапример: 15.03 20:00"
+	CreateAskLocation = "\U0001f4cd Отправь геолокацию места проведения через \U0001f4ce (скрепку) → Геопозиция."
+	CreateAskCapacity = "Сколько участников (не считая тебя)? Максимум — 50."
+	CreateCancelled   = "Создание события отменено."
+	InvalidTime       = "Неверный формат. Используй: ДД.ММ ЧЧ:ММ (например: 15.03 20:00)"
+	TimePast          = "Дата уже прошла. Укажи будущую дату."
+)
+
+func CreateSuccess(title, city string, startsAt time.Time) string {
+	return fmt.Sprintf(
+		"\u2705 Событие \"%s\" создано!\n"+
+			"\U0001f4cd %s\n"+
+			"\U0001f4c5 %s\n\n"+
+			"Жди заявок — я уведомлю тебя о каждой.",
+		title, city, startsAt.Format("02.01 15:04"),
+	)
+}
+
+func CreateConfirm(emoji, typeLabel, title, desc, city string, startsAt time.Time, capacity int) string {
+	descLine := ""
+	if desc != "" {
+		descLine = fmt.Sprintf("\n\U0001f4ac %s", desc)
+	}
+	return fmt.Sprintf(
+		"Всё верно?\n\n"+
+			"%s %s\n"+
+			"\U0001f3af %s%s\n"+
+			"\U0001f4cd %s\n"+
+			"\U0001f4c5 %s\n"+
+			"\U0001f465 до %d чел.",
+		emoji, typeLabel, title, descLine, city,
+		startsAt.Format("02.01 15:04"), capacity,
+	)
+}
+
+const (
+	BrowseEmpty   = "Пока нет событий рядом с тобой. Создай первое — /create"
+	BrowseEnd     = "Это все события на данный момент."
+	BrowseExpired = "Напиши /events заново."
+	AlreadyJoined = "Ты уже подал заявку на это событие."
+	JoinSent      = "\u2705 Заявка отправлена! Организатор получит уведомление."
+	EventFull     = "К сожалению, все места заняты."
+)
+
+const (
+	SessionExpired    = "Сессия истекла. Начни /create заново."
+	UnknownEventType  = "Неизвестный тип."
+	InvalidNumber     = "Неверное число."
+	NotHost           = "Ты не организатор."
+	Approved          = "\u2705 Принят!"
+	Rejected          = "\u274c Отклонён."
+	EventCancelledCb  = "\u2705 Событие отменено."
+	ParticipantRemovedCb = "\u2705 Участник удалён."
+	EventNoLongerActive  = "Это событие уже неактивно."
+)
+
+func EventCard(emoji, typeLabel, title, desc, city string, startsAt time.Time, approved, max int) string {
+	descLine := ""
+	if desc != "" {
+		descLine = fmt.Sprintf("\n\U0001f4ac %s", desc)
+	}
+	return fmt.Sprintf(
+		"%s %s\n"+
+			"\U0001f3af %s%s\n"+
+			"\U0001f4cd %s\n"+
+			"\U0001f4c5 %s\n"+
+			"\U0001f465 %d/%d",
+		emoji, typeLabel, title, descLine, city,
+		startsAt.Format("02.01 15:04"), approved, max,
+	)
+}
+
+func JoinRequest(eventTitle string, telegramID int64, name, username string, age int, city, state string) string {
+	usernameStr := "(юзернейм не указан)"
+	if username != "" {
+		usernameStr = fmt.Sprintf("(@%s)", username)
+	}
+	return fmt.Sprintf(
+		"\U0001f514 Новая заявка на \"%s\"!\n\n"+
+			"\U0001f464 <a href=\"tg://user?id=%d\">%s</a> %s, %d\n"+
+			"\U0001f4cd %s, %s",
+		eventTitle, telegramID, name, usernameStr, age, city, state,
+	)
+}
+
+func ParticipantApproved(eventTitle, hostName, hostUsername, city string, participantNames []string) string {
+	contactLine := hostName
+	if hostUsername != "" {
+		contactLine = fmt.Sprintf("%s (@%s)", hostName, hostUsername)
+	}
+	participantsLine := ""
+	if len(participantNames) > 0 {
+		participantsLine = fmt.Sprintf("\n\U0001f465 Участники: %s", strings.Join(participantNames, ", "))
+	}
+	return fmt.Sprintf(
+		"\u2705 Тебя приняли на \"%s\"!\n\n"+
+			"\U0001f464 Организатор: %s\n"+
+			"\U0001f4cd %s%s",
+		eventTitle, contactLine, city, participantsLine,
+	)
+}
+
+func ParticipantRejected(eventTitle string) string {
+	return fmt.Sprintf("\u274c К сожалению, организатор отклонил заявку на \"%s\".", eventTitle)
+}
+
+func EventCancelled(eventTitle string) string {
+	return fmt.Sprintf("\u274c Событие \"%s\" было отменено организатором.", eventTitle)
+}
+
+func ParticipantRemoved(eventTitle string) string {
+	return fmt.Sprintf("\u274c Организатор убрал тебя из события \"%s\".", eventTitle)
+}
+
+const ParticipantLeft = "Ты покинул событие."
+
+func HostNotifyLeft(eventTitle, name string) string {
+	return fmt.Sprintf("👤 %s покинул событие \"%s\".", name, eventTitle)
+}
+
+const EventAlreadyStarted = "Событие уже началось, покинуть нельзя."
+const NotParticipant = "Ты не участник этого события."
+
+const UsernameWarning = "⚠️ У тебя не установлен юзернейм в Telegram. Организаторы событий не смогут связаться с тобой напрямую. Рекомендуем установить его в настройках Telegram."
+
+const MyEventsEmpty = "У тебя пока нет событий.\n\n/create — создать событие\n/events — найти событие"
+
+func MyEventRow(emoji, title string, startsAt time.Time, approved, max, pending int) string {
+	pendingStr := ""
+	if pending > 0 {
+		pendingStr = fmt.Sprintf(" (+%d \U0001f514)", pending)
+	}
+	return fmt.Sprintf(
+		"%s %s — %s [%d/%d]%s",
+		emoji, title, startsAt.Format("02.01 15:04"), approved, max, pendingStr,
 	)
 }

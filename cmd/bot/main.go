@@ -26,18 +26,13 @@ func main() {
 		log.Fatal("TELEGRAM_BOT_TOKEN is not set")
 	}
 
-	openaiKey := os.Getenv("OPENAI_API_KEY")
-	if openaiKey == "" {
-		log.Fatal("OPENAI_API_KEY is not set")
-	}
-
 	db, err := database.New(dsn)
 	if err != nil {
 		log.Fatalf("database connection failed: %v", err)
 	}
 	defer db.Close()
 
-	b, err := bot.New(token, db, openaiKey)
+	b, err := bot.New(token, db)
 	if err != nil {
 		log.Fatalf("bot creation failed: %v", err)
 	}

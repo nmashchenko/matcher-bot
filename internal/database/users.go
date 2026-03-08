@@ -7,30 +7,23 @@ import (
 	"fmt"
 	"time"
 
-	pgvector "github.com/pgvector/pgvector-go"
 	"github.com/uptrace/bun"
 )
 
-// UpdateData holds optional user fields to update. Nil means "don't touch".
+// UserUpdateData holds optional user fields to update. Nil means "don't touch".
 type UserUpdateData struct {
-	UserState           *UserState
-	Latitude            *float64
-	Longitude           *float64
-	Country             *string
-	State               *string
-	City                *string
-	VerifiedAt          *time.Time
-	AvatarFileID        *string
-	Age                 *int
-	Goal                *Goal
-	Bio                 *string
-	LookingFor          *string
-	BioEmbedding        *pgvector.Vector
-	LookingForEmbedding *pgvector.Vector
+	UserState    *UserState
+	Latitude     *float64
+	Longitude    *float64
+	Country      *string
+	State        *string
+	City         *string
+	VerifiedAt   *time.Time
+	AvatarFileID *string
+	Age          *int
 }
 
 // UserRepository is the interface satisfied by UserStore.
-// Consumers should depend on this rather than on *UserStore directly.
 type UserRepository interface {
 	FindOrCreate(ctx context.Context, telegramID int64, username, firstName, lastName *string) (*User, error)
 	GetByTelegramID(ctx context.Context, telegramID int64) (*User, error)
@@ -131,21 +124,6 @@ func (s *UserStore) Update(ctx context.Context, telegramID int64, data *UserUpda
 	}
 	if data.Age != nil {
 		q = q.Set("age = ?", *data.Age)
-	}
-	if data.Goal != nil {
-		q = q.Set("goal = ?", string(*data.Goal))
-	}
-	if data.Bio != nil {
-		q = q.Set("bio = ?", *data.Bio)
-	}
-	if data.LookingFor != nil {
-		q = q.Set("looking_for = ?", *data.LookingFor)
-	}
-	if data.BioEmbedding != nil {
-		q = q.Set("bio_embedding = ?", *data.BioEmbedding)
-	}
-	if data.LookingForEmbedding != nil {
-		q = q.Set("looking_for_embedding = ?", *data.LookingForEmbedding)
 	}
 
 	_, err := q.Exec(ctx)

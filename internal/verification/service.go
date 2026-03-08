@@ -15,16 +15,12 @@ type VerifyResult struct {
 	Error    string // "geocoding_failed" or ""
 }
 
-type geocoder interface {
-	ReverseGeocode(ctx context.Context, lat, lon float64) (*geocoding.GeoResult, error)
-}
-
 type Service struct {
 	users database.UserRepository
-	geo   geocoder
+	geo   *geocoding.Geocoder
 }
 
-func NewService(users database.UserRepository, geo geocoder) *Service {
+func NewService(users database.UserRepository, geo *geocoding.Geocoder) *Service {
 	return &Service{users: users, geo: geo}
 }
 

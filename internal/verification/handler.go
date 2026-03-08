@@ -9,16 +9,12 @@ import (
 	tele "gopkg.in/telebot.v4"
 )
 
-type verificationService interface {
-	VerifyByLocation(ctx context.Context, telegramID int64, lat, lon float64) (*VerifyResult, error)
-}
-
 type Handler struct {
-	svc        verificationService
+	svc        *Service
 	onVerified func(tele.Context) error
 }
 
-func NewHandler(svc verificationService, onVerified func(tele.Context) error) *Handler {
+func NewHandler(svc *Service, onVerified func(tele.Context) error) *Handler {
 	return &Handler{svc: svc, onVerified: onVerified}
 }
 
@@ -32,10 +28,7 @@ func (h *Handler) SendVerificationPrompt(c tele.Context) error {
 		markup.Row(markup.Location(messages.VerificationButton)),
 	)
 
-	return c.Send(
-		messages.VerificationIntro,
-		markup,
-	)
+	return c.Send(messages.VerificationIntro, markup)
 }
 
 func (h *Handler) OnLocation(c tele.Context) error {
