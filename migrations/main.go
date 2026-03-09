@@ -23,6 +23,7 @@ var migrations = []migration{
 	{version: "001", up: up001, down: down001},
 	{version: "002", up: up002, down: down002},
 	{version: "003", up: up003, down: down003},
+	{version: "004", up: up004, down: down004},
 }
 
 func ensureMigrationsTable(ctx context.Context, db *bun.DB) error {

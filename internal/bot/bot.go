@@ -28,8 +28,9 @@ func New(token string, db *bun.DB) (*tele.Bot, error) {
 
 	userStore := database.NewUserStore(db)
 	eventStore := database.NewEventStore(db)
+	whitelistStore := database.NewWhitelistStore(db)
 	geo := geocoding.NewGeocoder()
-	verifSvc := verification.NewService(userStore, geo)
+	verifSvc := verification.NewService(userStore, geo, whitelistStore)
 	obHandler := onboarding.NewHandler(userStore)
 	evHandler := events.NewHandler(userStore, eventStore, geo, b)
 

@@ -8,6 +8,8 @@ import (
 	"os"
 	"time"
 
+	"matcher-bot/internal/geocoding"
+
 	"github.com/joho/godotenv"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
@@ -19,11 +21,11 @@ const (
 	seedUsername    = "nmashchenko"
 	seedFirstName  = "Nikita"
 	seedLastName   = "Mashchenko"
-	seedCity       = "Kahaluu-Keauhou"
-	seedState      = "Hawaii"
-	seedCountry    = "United States"
-	seedLat        = 19.566516876220703
-	seedLon        = -155.96009826660156
+	seedCity    = geocoding.DefaultCity
+	seedState   = geocoding.DefaultState
+	seedCountry = geocoding.DefaultCountry
+	seedLat     = geocoding.DefaultLat
+	seedLon     = geocoding.DefaultLon
 	seedAge        = 24
 	seedAvatarID   = "AgACAgIAAxUAAWmsgVkQH0m3zr3l1cbjWDIF7tmaAAIBC2sbJQ5TGTKbxpyO1ULiAQADAgADYwADOgQ"
 )
