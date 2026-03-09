@@ -10,6 +10,7 @@ import (
 	"matcher-bot/internal/events"
 	"matcher-bot/internal/geocoding"
 	"matcher-bot/internal/onboarding"
+	"matcher-bot/internal/settings"
 	"matcher-bot/internal/verification"
 
 	"github.com/uptrace/bun"
@@ -32,6 +33,8 @@ func New(token string, db *bun.DB) (*tele.Bot, error) {
 	obHandler := onboarding.NewHandler(userStore)
 	evHandler := events.NewHandler(userStore, eventStore, geo, b)
 
+	settingsHandler := settings.NewHandler(userStore)
+
 	verifHandler := verification.NewHandler(verifSvc, obHandler.StartOnboarding)
 
 	b.Handle("/start", handleStart(userStore, verifHandler, obHandler))
@@ -44,8 +47,11 @@ func New(token string, db *bun.DB) (*tele.Bot, error) {
 
 	obHandler.Register(b)
 	evHandler.Register(b)
+	settingsHandler.Register(b)
 
-	b.Handle(tele.OnText, handleText(userStore, obHandler, evHandler))
+	b.Handle("/settings", settingsHandler.CmdSettings)
+
+	b.Handle(tele.OnText, handleText(userStore, obHandler, evHandler, settingsHandler))
 
 	b.Handle(tele.OnSticker, func(c tele.Context) error {
 		return c.Send(fmt.Sprintf("Sticker file_id:\n<code>%s</code>", c.Message().Sticker.FileID), tele.ModeHTML)

@@ -27,7 +27,21 @@ func (h *Handler) cmdBrowse(c tele.Context) error {
 		state = *user.State
 	}
 
-	return h.showNextEvent(c, city, state, false)
+	var eventType *database.EventType
+	if user.PreferredEventType != nil {
+		et := database.EventType(*user.PreferredEventType)
+		eventType = &et
+	}
+
+	if eventType != nil {
+		emoji := EventTypeEmoji(*eventType)
+		label := EventTypeLabel(*eventType)
+		_ = c.Send(messages.BrowseFilterNotice(emoji, label, city, *eventType == database.EventGaming))
+	} else {
+		_ = c.Send(messages.BrowseFilterAll(city))
+	}
+
+	return h.showNextEvent(c, city, state, eventType, false)
 }
 
 func (h *Handler) onBrowseNext(c tele.Context) error {
@@ -50,8 +64,14 @@ func (h *Handler) onBrowseNext(c tele.Context) error {
 		state = *user.State
 	}
 
+	var eventType *database.EventType
+	if user.PreferredEventType != nil {
+		et := database.EventType(*user.PreferredEventType)
+		eventType = &et
+	}
+
 	_ = c.Respond()
-	return h.showNextEvent(c, city, state, true)
+	return h.showNextEvent(c, city, state, eventType, true)
 }
 
 func (h *Handler) onBrowseJoin(c tele.Context) error {
@@ -107,14 +127,21 @@ func (h *Handler) onBrowseJoin(c tele.Context) error {
 	if user.State != nil {
 		state = *user.State
 	}
-	return h.showNextEvent(c, city, state, true)
+
+	var eventType *database.EventType
+	if user.PreferredEventType != nil {
+		et := database.EventType(*user.PreferredEventType)
+		eventType = &et
+	}
+
+	return h.showNextEvent(c, city, state, eventType, true)
 }
 
-func (h *Handler) showNextEvent(c tele.Context, city, state string, edit bool) error {
+func (h *Handler) showNextEvent(c tele.Context, city, state string, eventType *database.EventType, edit bool) error {
 	ctx := context.Background()
 	telegramID := c.Sender().ID
 
-	event, err := h.events.NextUnseen(ctx, city, state, telegramID)
+	event, err := h.events.NextUnseen(ctx, city, state, telegramID, eventType)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			if edit {

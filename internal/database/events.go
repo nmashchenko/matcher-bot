@@ -12,7 +12,7 @@ type EventRepository interface {
 	Create(ctx context.Context, event *Event) error
 	GetByID(ctx context.Context, id string) (*Event, error)
 	UpdateState(ctx context.Context, id string, state EventState) error
-	NextUnseen(ctx context.Context, city, state string, telegramID int64) (*Event, error)
+	NextUnseen(ctx context.Context, city, state string, telegramID int64, eventType *EventType) (*Event, error)
 	MarkViewed(ctx context.Context, telegramID int64, eventID string) error
 	ListByHost(ctx context.Context, hostTelegramID int64) ([]*Event, error)
 	ListJoined(ctx context.Context, telegramID int64) ([]*Event, error)
@@ -63,14 +63,15 @@ func (s *EventStore) UpdateState(ctx context.Context, id string, state EventStat
 	return err
 }
 
-// NextUnseen returns the next active event in the same US state that the user hasn't viewed yet.
-// Excludes the user's own events. Orders same-city first, then soonest starts_at.
-func (s *EventStore) NextUnseen(ctx context.Context, city, state string, telegramID int64) (*Event, error) {
+// NextUnseen returns the next active event that the user hasn't viewed yet.
+// If eventType is nil: shows all types, filtered by same state, same-city priority.
+// If eventType is "gaming": global search (no city/state filter), filtered by type.
+// If eventType is anything else: filtered by same city and event type.
+func (s *EventStore) NextUnseen(ctx context.Context, city, state string, telegramID int64, eventType *EventType) (*Event, error) {
 	event := new(Event)
-	err := s.db.NewSelect().
+	q := s.db.NewSelect().
 		Model(event).
 		Where("e.event_state = ?", string(EventActive)).
-		Where("e.state = ?", state).
 		Where("e.host_telegram_id != ?", telegramID).
 		Where("e.starts_at > ?", time.Now()).
 		Where("e.id NOT IN (?)",
@@ -78,11 +79,22 @@ func (s *EventStore) NextUnseen(ctx context.Context, city, state string, telegra
 				TableExpr("event_views").
 				Column("event_id").
 				Where("telegram_id = ?", telegramID),
-		).
-		OrderExpr("CASE WHEN e.city = ? THEN 0 ELSE 1 END", city).
+		)
+
+	if eventType != nil {
+		q = q.Where("e.event_type = ?", string(*eventType))
+		if *eventType != EventGaming {
+			q = q.Where("e.city = ?", city)
+		}
+	} else {
+		q = q.Where("e.state = ?", state)
+	}
+
+	q = q.OrderExpr("CASE WHEN e.city = ? THEN 0 ELSE 1 END", city).
 		Order("e.starts_at ASC").
-		Limit(1).
-		Scan(ctx)
+		Limit(1)
+
+	err := q.Scan(ctx)
 	if err != nil {
 		return nil, err
 	}

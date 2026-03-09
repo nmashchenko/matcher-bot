@@ -30,9 +30,10 @@ type User struct {
 	Country      *string   `bun:",nullzero"`
 	State        *string   `bun:",nullzero"`
 	City         *string   `bun:",nullzero"`
-	AvatarFileID *string   `bun:",nullzero"`
-	Age          *int      `bun:",nullzero"`
-	VerifiedAt   *time.Time `bun:",nullzero"`
+	AvatarFileID       *string   `bun:",nullzero"`
+	Age                *int      `bun:",nullzero"`
+	PreferredEventType *string   `bun:"preferred_event_type,nullzero"`
+	VerifiedAt         *time.Time `bun:",nullzero"`
 	CreatedAt    time.Time  `bun:",nullzero,notnull,default:current_timestamp"`
 	UpdatedAt    time.Time  `bun:",nullzero,notnull,default:current_timestamp"`
 }

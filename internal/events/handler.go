@@ -28,7 +28,6 @@ func (h *Handler) Register(b *tele.Bot) {
 	b.Handle("/create", h.cmdCreate)
 	b.Handle("/events", h.blockIfCreating(h.cmdBrowse))
 	b.Handle("/myevents", h.blockIfCreating(h.cmdMy))
-
 	// Event type select
 	b.Handle("\fet", h.onEventTypeSelect)
 

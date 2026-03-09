@@ -1,19 +1,18 @@
 # Matcher Bot
 
-Telegram bot that matches CIS youth living in the US — location-verified onboarding, AI-powered profile embeddings, and 48-hour expiring match chats.
+Telegram bot for organizing local events among CIS youth living in the US — location-verified onboarding, event creation, browse & join with host approval.
 
 ## Tech Stack
 
 - **Go 1.24** + [telebot v4](https://github.com/go-telegram/telebot)
-- **PostgreSQL 17** + [pgvector](https://github.com/pgvector/pgvector) (HNSW cosine indices)
-- **OpenAI** `text-embedding-3-small` (1536-dim embeddings for bio & looking-for)
+- **PostgreSQL 17** via [bun ORM](https://github.com/uptrace/bun)
 - **Nominatim** (OpenStreetMap) for reverse geocoding
 - **Docker** multi-stage build + Docker Compose
 
 ## Quick Start
 
 ```bash
-cp .env.example .env   # fill in DATABASE_URL, TELEGRAM_BOT_TOKEN, OPENAI_API_KEY
+cp .env.example .env   # fill in DATABASE_URL, TELEGRAM_BOT_TOKEN
 make migrate            # run database migrations
 make run                # start the bot
 ```
@@ -27,39 +26,57 @@ make run                # start the bot
 | `make migrate` | Run database migrations |
 | `make db-reset` | Drop all tables and re-migrate |
 
-## Implemented
+## How It Works
 
-- [x] **Geolocation verification** — one-time location share, Nominatim reverse geocode, US-only gate
-- [x] **User state machine** — `unverified` → `onboarding` → `ready`
-- [x] **5-step onboarding** — age (auto-detect from Telegram birthday), goal (inline buttons), bio, looking-for, profile summary
-- [x] **Context-aware prompts** — dynamic messages that reference the user's city, age, goal, and name as they progress
-- [x] **Welcome sticker** — sends a sticker at onboarding start (configurable file_id)
-- [x] **AI embeddings** — bio and looking-for texts embedded via OpenAI, stored as pgvector columns with HNSW indices
-- [x] **Avatar extraction** — grabs profile photo from Telegram automatically
-- [x] **Resume onboarding** — returns user to the exact incomplete step on reconnect
-- [x] **Sticker debug handler** — send any sticker to get its `file_id` back
-- [x] **Database migrations** — versioned up/down/reset/status system
-- [x] **Docker deployment** — multi-stage Dockerfile + Compose with Postgres 17
+1. **Verification** — user shares location once, Nominatim confirms they're in the US
+2. **Onboarding** — age collected (auto-detected from Telegram birthday when available), user state transitions `unverified` → `onboarding` → `ready`
+3. **Create events** — 6-step wizard: type, title, description, date/time, location, capacity
+4. **Browse events** — swipe through active events in your city (filterable by type), gaming events visible across all cities
+5. **Join & approve** — send a join request, host gets notified and approves/rejects
+6. **Manage events** — view participants, remove people, cancel events; participants get real-time notifications
 
-## TODO
+## Bot Commands
 
-- [ ] **Matching engine** — browse profiles one-by-one, cosine similarity ranking using stored embeddings
-- [ ] **Text reactions** — free-text like/pass/maybe/report with LLM-based intent + tag extraction
-- [ ] **Preference learning** — tag weights from reactions, rejection reason tracking, feed re-ranking
-- [ ] **"Who liked you" feed** — transparent incoming likes (no paywall), instant match on mutual like
-- [ ] **48-hour match chats** — auto-created 2-person rooms with bot ice-breaker, auto-close after 48h
-- [ ] **Session dynamics** — streak detection, playful comments on rejection runs, "yesterday memory" summaries
-- [ ] **Rating & badges** — like rate, match rate, response rate, selectivity balance, behavioral badges (Ghost, Attention Hunter, etc.)
-- [ ] **Profile viewing** — `/profile` command to view/edit your own card
-- [ ] **Re-verification** — periodic location re-check for long-inactive users
-- [ ] **Monetization** — daily view/like limits, Telegram Stars payments, profile boost, rewind/second-chance
+| Command | Description |
+|---------|-------------|
+| `/start` | Begin verification / resume onboarding / main menu |
+| `/events` | Browse events nearby |
+| `/create` | Create a new event |
+| `/myevents` | View hosted & joined events |
+| `/settings` | Event type filter preference |
 
-## Design Docs
+## Project Structure
 
-Detailed specs for planned features live in [`docs/`](docs/):
+```
+cmd/bot/            — entrypoint
+internal/
+  bot/              — bot setup, middleware, top-level handlers
+  database/         — models, repositories (users, events, participants)
+  events/           — event creation wizard, browsing, management
+  geocoding/        — Nominatim reverse geocoding client
+  messages/         — all user-facing strings (Russian)
+  onboarding/       — age collection flow
+  settings/         — user preference management
+  util/             — shared helpers (pointer utilities)
+  verification/     — location-based US verification
+migrations/         — versioned database migrations
+```
 
-- [Matching System](docs/matching.md) — card browsing, text reactions, mutual likes, "who liked you"
-- [48-Hour Match Chats](docs/match-chats.md) — auto-created rooms, bot ice-breaker script, auto-close
-- [Personalization](docs/personalization.md) — preference learning, session dynamics, "yesterday memory"
-- [Rating & Badges](docs/rating-and-badges.md) — quality signals, behavioral badges, how they affect visibility
-- [Monetization](docs/monetization.md) — free limits, paid expansions via Telegram Stars
+## Event Types
+
+| Type | Emoji | City-scoped |
+|------|-------|-------------|
+| Hangout | 🤙 | Yes |
+| Party | 🎉 | Yes |
+| Gaming | 🎮 | No (all cities) |
+| Date | 💘 | Yes |
+| Sports | ⚽ | Yes |
+| Concert | 🎵 | Yes |
+
+## Testing
+
+```bash
+go test ./... -v
+```
+
+Unit tests cover pointer helpers, event time parsing, callback data parsing, event type lookups, and all message formatting functions. Database tests require `DATABASE_URL` and are skipped otherwise.

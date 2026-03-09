@@ -13,7 +13,7 @@ const (
 	StartPrompt    = "Напиши /start чтобы начать."
 	ShareLocationFirst    = "Сначала поделись геолокацией, чтобы я мог тебя верифицировать."
 	FinishOnboardingFirst = "Сначала заверши регистрацию — напиши /start."
-	UnknownCommand        = "Не понял тебя. Напиши /events, /create или /myevents."
+	UnknownCommand        = "Не понял тебя. Напиши /events, /create, /myevents или /settings."
 )
 
 const (
@@ -47,7 +47,8 @@ func OnboardingComplete(name string, age int, city, state string) string {
 			"Вот что можно делать:\n"+
 			"/events — смотреть события рядом\n"+
 			"/create — создать своё событие\n"+
-			"/myevents — мои события",
+			"/myevents — мои события\n"+
+			"/settings — настройки",
 		name, age, city, state,
 	)
 }
@@ -57,7 +58,8 @@ func MainMenu(city, state string) string {
 		"С возвращением! Ты в %s, %s.\n\n"+
 			"/events — смотреть события рядом\n"+
 			"/create — создать своё событие\n"+
-			"/myevents — мои события",
+			"/myevents — мои события\n"+
+			"/settings — настройки",
 		city, state,
 	)
 }
@@ -112,6 +114,17 @@ const (
 	JoinSent      = "\u2705 Заявка отправлена! Организатор получит уведомление."
 	EventFull     = "К сожалению, все места заняты."
 )
+
+func BrowseFilterNotice(emoji, typeLabel, city string, isGaming bool) string {
+	if isGaming {
+		return fmt.Sprintf("🔍 Ищу: %s %s — по всем городам", emoji, typeLabel)
+	}
+	return fmt.Sprintf("🔍 Ищу: %s %s — в %s", emoji, typeLabel, city)
+}
+
+func BrowseFilterAll(city string) string {
+	return fmt.Sprintf("🔍 Ищу: все типы — в %s", city)
+}
 
 const (
 	SessionExpired    = "Сессия истекла. Начни /create заново."
@@ -206,6 +219,15 @@ func EventCancelledConfirm(eventTitle string) string {
 }
 
 const UsernameWarning = "⚠️ У тебя не установлен юзернейм в Telegram. Организаторы событий не смогут связаться с тобой напрямую. Рекомендуем установить его в настройках Telegram."
+
+const SettingsTitle = "⚙️ Настройки"
+const SettingsFilterAll = "Все типы"
+const SettingsFilterUpdated = "Фильтр обновлён."
+const SettingsFilterBtn = "🎯 Фильтр событий"
+
+func SettingsView(currentFilter string) string {
+	return fmt.Sprintf("%s\n\n🎯 Фильтр событий: %s", SettingsTitle, currentFilter)
+}
 
 const MyEventsEmpty = "У тебя пока нет событий.\n\n/create — создать событие\n/events — найти событие"
 

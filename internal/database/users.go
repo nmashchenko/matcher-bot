@@ -12,15 +12,16 @@ import (
 
 // UserUpdateData holds optional user fields to update. Nil means "don't touch".
 type UserUpdateData struct {
-	UserState    *UserState
-	Latitude     *float64
-	Longitude    *float64
-	Country      *string
-	State        *string
-	City         *string
-	VerifiedAt   *time.Time
-	AvatarFileID *string
-	Age          *int
+	UserState          *UserState
+	Latitude           *float64
+	Longitude          *float64
+	Country            *string
+	State              *string
+	City               *string
+	VerifiedAt         *time.Time
+	AvatarFileID       *string
+	Age                *int
+	PreferredEventType *string // nil = don't touch, "" = clear to NULL, "gaming" = set value
 }
 
 // UserRepository is the interface satisfied by UserStore.
@@ -124,6 +125,13 @@ func (s *UserStore) Update(ctx context.Context, telegramID int64, data *UserUpda
 	}
 	if data.Age != nil {
 		q = q.Set("age = ?", *data.Age)
+	}
+	if data.PreferredEventType != nil {
+		if *data.PreferredEventType == "" {
+			q = q.Set("preferred_event_type = NULL")
+		} else {
+			q = q.Set("preferred_event_type = ?", *data.PreferredEventType)
+		}
 	}
 
 	_, err := q.Exec(ctx)

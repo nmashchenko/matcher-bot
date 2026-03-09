@@ -9,6 +9,8 @@ import (
 	"matcher-bot/internal/events"
 	"matcher-bot/internal/messages"
 	"matcher-bot/internal/onboarding"
+	"matcher-bot/internal/settings"
+	"matcher-bot/internal/util"
 	"matcher-bot/internal/verification"
 
 	tele "gopkg.in/telebot.v4"
@@ -43,9 +45,9 @@ func requireReady(userStore database.UserRepository) tele.MiddlewareFunc {
 func handleStart(userStore database.UserRepository, verifHandler *verification.Handler, obHandler *onboarding.Handler) tele.HandlerFunc {
 	return func(c tele.Context) error {
 		sender := c.Sender()
-		username := ptrStr(sender.Username)
-		firstName := ptrStr(sender.FirstName)
-		lastName := ptrStr(sender.LastName)
+		username := util.Str(sender.Username)
+		firstName := util.Str(sender.FirstName)
+		lastName := util.Str(sender.LastName)
 
 		user, err := userStore.FindOrCreate(context.Background(), sender.ID, username, firstName, lastName)
 		if err != nil {
@@ -74,7 +76,7 @@ func handleStart(userStore database.UserRepository, verifHandler *verification.H
 	}
 }
 
-func handleText(userStore database.UserRepository, obHandler *onboarding.Handler, evHandler *events.Handler) tele.HandlerFunc {
+func handleText(userStore database.UserRepository, obHandler *onboarding.Handler, evHandler *events.Handler, setHandler *settings.Handler) tele.HandlerFunc {
 	return func(c tele.Context) error {
 		user, err := userStore.GetByTelegramID(context.Background(), c.Sender().ID)
 		if err != nil {
@@ -92,6 +94,11 @@ func handleText(userStore database.UserRepository, obHandler *onboarding.Handler
 		// Event creation wizard.
 		if evHandler.IsCreating(c.Sender().ID) {
 			return evHandler.OnCreateText(c)
+		}
+
+		// Settings reply keyboard buttons.
+		if setHandler.OnText(c) {
+			return nil
 		}
 
 		return c.Send(messages.UnknownCommand)
@@ -117,9 +124,3 @@ func locationDispatcher(userStore database.UserRepository, verifHandler *verific
 	}
 }
 
-func ptrStr(s string) *string {
-	if s == "" {
-		return nil
-	}
-	return &s
-}
