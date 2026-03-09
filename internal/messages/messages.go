@@ -63,13 +63,16 @@ func MainMenu(city, state string) string {
 }
 
 const (
-	CreateStart       = "Создаём событие! Выбери тип:"
+	CreateStart       = "Создаём событие!"
+	CreatePickType    = "Выбери тип:"
 	CreateAskTitle    = "Придумай название для события:"
 	CreateAskDesc     = "Добавь описание (или отправь \"-\" чтобы пропустить):"
 	CreateAskTime     = "Когда начало? Формат: ДД.ММ ЧЧ:ММ\nНапример: 15.03 20:00"
 	CreateAskLocation = "\U0001f4cd Отправь геолокацию места проведения через \U0001f4ce (скрепку) → Геопозиция."
 	CreateAskCapacity = "Сколько участников (не считая тебя)? Максимум — 50."
 	CreateCancelled   = "Создание события отменено."
+	CreateInProgress  = "Ты сейчас создаёшь событие. Заверши или отмени создание."
+	CreateCancelBtn   = "❌ Отменить создание"
 	InvalidTime       = "Неверный формат. Используй: ДД.ММ ЧЧ:ММ (например: 15.03 20:00)"
 	TimePast          = "Дата уже прошла. Укажи будущую дату."
 )
@@ -120,6 +123,7 @@ const (
 	EventCancelledCb  = "\u2705 Событие отменено."
 	ParticipantRemovedCb = "\u2705 Участник удалён."
 	EventNoLongerActive  = "Это событие уже неактивно."
+	AlreadyRemoved       = "Участник уже убран."
 )
 
 func EventCard(emoji, typeLabel, title, desc, city string, startsAt time.Time, approved, max int) string {
@@ -188,6 +192,18 @@ func HostNotifyLeft(eventTitle, name string) string {
 
 const EventAlreadyStarted = "Событие уже началось, покинуть нельзя."
 const NotParticipant = "Ты не участник этого события."
+
+func HostApprovedConfirm(name, eventTitle string) string {
+	return fmt.Sprintf("✅ %s принят на \"%s\".", name, eventTitle)
+}
+
+func HostRemovedConfirm(name, eventTitle string) string {
+	return fmt.Sprintf("❌ %s убран из \"%s\".", name, eventTitle)
+}
+
+func EventCancelledConfirm(eventTitle string) string {
+	return fmt.Sprintf("🚫 Событие \"%s\" отменено. Участники уведомлены.", eventTitle)
+}
 
 const UsernameWarning = "⚠️ У тебя не установлен юзернейм в Telegram. Организаторы событий не смогут связаться с тобой напрямую. Рекомендуем установить его в настройках Telegram."
 

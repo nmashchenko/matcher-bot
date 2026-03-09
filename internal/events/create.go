@@ -42,12 +42,29 @@ type createSession struct {
 
 var createSessions sync.Map // map[int64]*createSession
 
+// cancelKeyboard returns a reply keyboard with a cancel button.
+func cancelKeyboard() *tele.ReplyMarkup {
+	markup := &tele.ReplyMarkup{ResizeKeyboard: true}
+	markup.Reply(markup.Row(markup.Text(messages.CreateCancelBtn)))
+	return markup
+}
+
+// removeKeyboard removes the reply keyboard.
+func removeKeyboard() *tele.ReplyMarkup {
+	return &tele.ReplyMarkup{RemoveKeyboard: true}
+}
+
+// cmdCreate starts the event creation wizard.
 func (h *Handler) cmdCreate(c tele.Context) error {
 	createSessions.Delete(c.Sender().ID)
 
 	sess := &createSession{Step: stepType}
 	createSessions.Store(c.Sender().ID, sess)
 
+	// Show cancel reply keyboard first (persists across messages).
+	_ = c.Send(messages.CreateStart, cancelKeyboard())
+
+	// Inline buttons for event type selection.
 	markup := &tele.ReplyMarkup{}
 	var rows []tele.Row
 	for _, opt := range EventTypeOptions {
@@ -59,9 +76,10 @@ func (h *Handler) cmdCreate(c tele.Context) error {
 	}
 	markup.Inline(rows...)
 
-	return c.Send(messages.CreateStart, markup)
+	return c.Send(messages.CreatePickType, markup)
 }
 
+// onEventTypeSelect handles the inline event type callback and advances to the title step.
 func (h *Handler) onEventTypeSelect(c tele.Context) error {
 	val, ok := createSessions.Load(c.Sender().ID)
 	if !ok {
@@ -82,9 +100,10 @@ func (h *Handler) onEventTypeSelect(c tele.Context) error {
 
 	_ = c.Respond()
 	_ = c.Delete()
-	return c.Send(messages.CreateAskTitle)
+	return c.Send(messages.CreateAskTitle, cancelKeyboard())
 }
 
+// handleCreateText dispatches text input to the appropriate creation step.
 func (h *Handler) handleCreateText(c tele.Context) error {
 	val, ok := createSessions.Load(c.Sender().ID)
 	if !ok {
@@ -93,62 +112,82 @@ func (h *Handler) handleCreateText(c tele.Context) error {
 	sess := val.(*createSession)
 	text := strings.TrimSpace(c.Text())
 
+	if text == messages.CreateCancelBtn {
+		createSessions.Delete(c.Sender().ID)
+		return c.Send(messages.CreateCancelled, removeKeyboard())
+	}
+
 	switch sess.Step {
 	case stepTitle:
-		if text == "" {
-			return c.Send(messages.CreateAskTitle)
-		}
-		sess.Title = text
-		sess.Step = stepDesc
-		return c.Send(messages.CreateAskDesc)
-
+		return h.onStepTitle(c, sess, text)
 	case stepDesc:
-		if text == "-" {
-			sess.Desc = ""
-		} else {
-			sess.Desc = text
-		}
-		sess.Step = stepTime
-		return c.Send(messages.CreateAskTime)
-
+		return h.onStepDesc(c, sess, text)
 	case stepTime:
-		t, err := parseEventTime(text)
-		if err != nil {
-			return c.Send(messages.InvalidTime)
-		}
-		if t.Before(time.Now()) {
-			return c.Send(messages.TimePast)
-		}
-		sess.StartsAt = t
-		sess.Step = stepLocation
-		return c.Send(messages.CreateAskLocation)
-
+		return h.onStepTime(c, sess, text)
 	case stepCapacity:
-		n, err := strconv.Atoi(text)
-		if err != nil || n < 1 || n > 50 {
-			return c.Send(messages.InvalidNumber)
-		}
-		sess.Capacity = n
-		sess.Step = stepConfirm
-
-		emoji := EventTypeEmoji(sess.EventType)
-		label := EventTypeLabel(sess.EventType)
-
-		markup := &tele.ReplyMarkup{}
-		btnOk := markup.Data("\u2705 Создать", "cc", "ok")
-		btnNo := markup.Data("\u274c Отмена", "cc", "no")
-		markup.Inline(markup.Row(btnOk, btnNo))
-
-		return c.Send(
-			messages.CreateConfirm(emoji, label, sess.Title, sess.Desc, sess.City, sess.StartsAt, sess.Capacity),
-			markup,
-		)
-
+		return h.onStepCapacity(c, sess, text)
 	default:
 		return nil
 	}
 }
 
+func (h *Handler) onStepTitle(c tele.Context, sess *createSession, text string) error {
+	if text == "" {
+		return c.Send(messages.CreateAskTitle, cancelKeyboard())
+	}
+	sess.Title = text
+	sess.Step = stepDesc
+	return c.Send(messages.CreateAskDesc, cancelKeyboard())
+}
+
+func (h *Handler) onStepDesc(c tele.Context, sess *createSession, text string) error {
+	if text == "-" {
+		sess.Desc = ""
+	} else {
+		sess.Desc = text
+	}
+	sess.Step = stepTime
+	return c.Send(messages.CreateAskTime, cancelKeyboard())
+}
+
+func (h *Handler) onStepTime(c tele.Context, sess *createSession, text string) error {
+	t, err := parseEventTime(text)
+	if err != nil {
+		return c.Send(messages.InvalidTime, cancelKeyboard())
+	}
+	if t.Before(time.Now()) {
+		return c.Send(messages.TimePast, cancelKeyboard())
+	}
+	sess.StartsAt = t
+	sess.Step = stepLocation
+	return c.Send(messages.CreateAskLocation, cancelKeyboard())
+}
+
+func (h *Handler) onStepCapacity(c tele.Context, sess *createSession, text string) error {
+	n, err := strconv.Atoi(text)
+	if err != nil || n < 1 || n > 50 {
+		return c.Send(messages.InvalidNumber, cancelKeyboard())
+	}
+	sess.Capacity = n
+	sess.Step = stepConfirm
+
+	emoji := EventTypeEmoji(sess.EventType)
+	label := EventTypeLabel(sess.EventType)
+
+	markup := &tele.ReplyMarkup{}
+	btnOk := markup.Data("\u2705 Создать", "cc", "ok")
+	btnNo := markup.Data("\u274c Отмена", "cc", "no")
+	markup.Inline(markup.Row(btnOk, btnNo))
+
+	// Send a blank message to remove the reply keyboard, then show confirm with inline buttons.
+	_ = c.Send("\u2705 Отлично! Проверь данные:", removeKeyboard())
+	return c.Send(
+		messages.CreateConfirm(emoji, label, sess.Title, sess.Desc, sess.City, sess.StartsAt, sess.Capacity),
+		markup,
+	)
+}
+
+// handleCreateLocation processes the shared location and advances to the capacity step.
 func (h *Handler) handleCreateLocation(c tele.Context) error {
 	val, ok := createSessions.Load(c.Sender().ID)
 	if !ok {
@@ -175,10 +214,10 @@ func (h *Handler) handleCreateLocation(c tele.Context) error {
 	sess.City = geoResult.City
 	sess.State = geoResult.State
 	sess.Step = stepCapacity
-	return c.Send(messages.CreateAskCapacity)
+	return c.Send(messages.CreateAskCapacity, cancelKeyboard())
 }
 
-
+// onCreateConfirm handles the final confirm/cancel callback and persists the event.
 func (h *Handler) onCreateConfirm(c tele.Context) error {
 	val, ok := createSessions.Load(c.Sender().ID)
 	if !ok {
@@ -192,7 +231,7 @@ func (h *Handler) onCreateConfirm(c tele.Context) error {
 
 	if action != "ok" {
 		createSessions.Delete(c.Sender().ID)
-		return c.Send(messages.CreateCancelled)
+		return c.Send(messages.CreateCancelled, removeKeyboard())
 	}
 
 	event := &database.Event{
@@ -214,7 +253,7 @@ func (h *Handler) onCreateConfirm(c tele.Context) error {
 	}
 
 	createSessions.Delete(c.Sender().ID)
-	return c.Send(messages.CreateSuccess(sess.Title, sess.City, sess.StartsAt))
+	return c.Send(messages.CreateSuccess(sess.Title, sess.City, sess.StartsAt), removeKeyboard())
 }
 
 // parseEventTime parses "DD.MM HH:MM" into a time.Time for the current year.

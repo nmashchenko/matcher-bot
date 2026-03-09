@@ -45,6 +45,14 @@ func (h *Handler) onApprove(c tele.Context) error {
 	_ = c.Respond(&tele.CallbackResponse{Text: messages.Approved})
 	_ = c.Delete()
 
+	// Confirm to host with participant name.
+	u, _ := h.users.GetByTelegramID(context.Background(), telegramID)
+	name := "Участник"
+	if u != nil && u.FirstName != nil {
+		name = *u.FirstName
+	}
+	_ = c.Send(messages.HostApprovedConfirm(name, event.Title))
+
 	h.notifyApproved(event, telegramID)
 
 	return nil
@@ -94,8 +102,10 @@ func (h *Handler) onCancelEvent(c tele.Context) error {
 		return c.Respond(&tele.CallbackResponse{Text: messages.GenericError})
 	}
 
-	_ = c.Respond(&tele.CallbackResponse{Text: messages.EventCancelledCb})
+	_ = c.Respond()
 	_ = c.Delete()
+
+	_ = c.Send(messages.EventCancelledConfirm(event.Title))
 
 	h.notifyEventCancelled(event)
 
@@ -118,12 +128,21 @@ func (h *Handler) onRemoveParticipant(c tele.Context) error {
 		return c.Respond(&tele.CallbackResponse{Text: messages.NotHost})
 	}
 
+	participant, err := h.events.GetParticipant(context.Background(), eventID, telegramID)
+	if err != nil || (participant.Status != database.StatusApproved && participant.Status != database.StatusPending) {
+		return c.Respond(&tele.CallbackResponse{Text: messages.AlreadyRemoved})
+	}
+
 	if err := h.events.UpdateParticipantStatus(context.Background(), eventID, telegramID, database.StatusRemoved); err != nil {
 		slog.Error("remove: update", "error", err)
 		return c.Respond(&tele.CallbackResponse{Text: messages.GenericError})
 	}
 
-	_ = c.Respond(&tele.CallbackResponse{Text: messages.ParticipantRemovedCb})
+	_ = c.Respond()
+
+	// Update the manage card in-place.
+	text, markup := h.buildManageCard(event)
+	_ = c.Edit(text, markup)
 
 	user := &tele.User{ID: telegramID}
 	if _, err := h.bot.Send(user, messages.ParticipantRemoved(event.Title)); err != nil {
@@ -134,25 +153,50 @@ func (h *Handler) onRemoveParticipant(c tele.Context) error {
 }
 
 func (h *Handler) cmdMy(c tele.Context) error {
-	hosted, err := h.events.ListByHost(context.Background(), c.Sender().ID)
+	text, markup, err := h.buildMyEventsList(c.Sender().ID)
+	if err != nil {
+		return c.Send(messages.GenericError)
+	}
+	if markup != nil {
+		return c.Send(text, markup)
+	}
+	return c.Send(text)
+}
+
+func (h *Handler) onBackToMyEvents(c tele.Context) error {
+	_ = c.Respond()
+	text, markup, err := h.buildMyEventsList(c.Sender().ID)
+	if err != nil {
+		return c.Edit(messages.GenericError)
+	}
+	if markup != nil {
+		return c.Edit(text, markup)
+	}
+	return c.Edit(text)
+}
+
+func (h *Handler) buildMyEventsList(telegramID int64) (string, *tele.ReplyMarkup, error) {
+	ctx := context.Background()
+
+	hosted, err := h.events.ListByHost(ctx, telegramID)
 	if err != nil {
 		slog.Error("my: list hosted", "error", err)
-		return c.Send(messages.GenericError)
+		return "", nil, err
 	}
 
-	joinedApproved, err := h.events.ListJoinedByStatus(context.Background(), c.Sender().ID, database.StatusApproved)
+	joinedApproved, err := h.events.ListJoinedByStatus(ctx, telegramID, database.StatusApproved)
 	if err != nil {
 		slog.Error("my: list joined approved", "error", err)
-		return c.Send(messages.GenericError)
+		return "", nil, err
 	}
-	joinedPending, err := h.events.ListJoinedByStatus(context.Background(), c.Sender().ID, database.StatusPending)
+	joinedPending, err := h.events.ListJoinedByStatus(ctx, telegramID, database.StatusPending)
 	if err != nil {
 		slog.Error("my: list joined pending", "error", err)
-		return c.Send(messages.GenericError)
+		return "", nil, err
 	}
 
 	if len(hosted) == 0 && len(joinedApproved) == 0 && len(joinedPending) == 0 {
-		return c.Send(messages.MyEventsEmpty)
+		return messages.MyEventsEmpty, nil, nil
 	}
 
 	var sb strings.Builder
@@ -161,9 +205,9 @@ func (h *Handler) cmdMy(c tele.Context) error {
 		sb.WriteString("\U0001f451 Мои события:\n\n")
 		for _, ev := range hosted {
 			emoji := EventTypeEmoji(ev.EventType)
-			approved, _ := h.events.CountApproved(context.Background(), ev.ID)
+			approved, _ := h.events.CountApproved(ctx, ev.ID)
 			pendingStatus := database.StatusPending
-			pendingList, _ := h.events.ListParticipants(context.Background(), ev.ID, &pendingStatus)
+			pendingList, _ := h.events.ListParticipants(ctx, ev.ID, &pendingStatus)
 
 			sb.WriteString(messages.MyEventRow(emoji, ev.Title, ev.StartsAt, approved, ev.MaxParticipants, len(pendingList)))
 			sb.WriteString("\n")
@@ -177,7 +221,7 @@ func (h *Handler) cmdMy(c tele.Context) error {
 		sb.WriteString("✅ Я участвую:\n\n")
 		for _, ev := range joinedApproved {
 			emoji := EventTypeEmoji(ev.EventType)
-			approved, _ := h.events.CountApproved(context.Background(), ev.ID)
+			approved, _ := h.events.CountApproved(ctx, ev.ID)
 			sb.WriteString(messages.MyEventRow(emoji, ev.Title, ev.StartsAt, approved, ev.MaxParticipants, 0))
 			sb.WriteString("\n")
 		}
@@ -190,7 +234,7 @@ func (h *Handler) cmdMy(c tele.Context) error {
 		sb.WriteString("⏳ Ожидают подтверждения:\n\n")
 		for _, ev := range joinedPending {
 			emoji := EventTypeEmoji(ev.EventType)
-			approved, _ := h.events.CountApproved(context.Background(), ev.ID)
+			approved, _ := h.events.CountApproved(ctx, ev.ID)
 			sb.WriteString(messages.MyEventRow(emoji, ev.Title, ev.StartsAt, approved, ev.MaxParticipants, 0))
 			sb.WriteString("\n")
 		}
@@ -217,10 +261,10 @@ func (h *Handler) cmdMy(c tele.Context) error {
 			rows = append(rows, markup.Row(btn))
 		}
 		markup.Inline(rows...)
-		return c.Send(sb.String(), markup)
+		return sb.String(), markup, nil
 	}
 
-	return c.Send(sb.String())
+	return sb.String(), nil, nil
 }
 
 func (h *Handler) onManageEvent(c tele.Context) error {
@@ -242,10 +286,19 @@ func (h *Handler) onManageEvent(c tele.Context) error {
 
 	_ = c.Respond()
 
+	text, markup := h.buildManageCard(event)
+	return c.Edit(text, markup)
+}
+
+// buildManageCard builds the event management card text and inline markup.
+func (h *Handler) buildManageCard(event *database.Event) (string, *tele.ReplyMarkup) {
+	ctx := context.Background()
+	eventID := event.ID
+
 	approvedStatus := database.StatusApproved
-	approvedList, _ := h.events.ListParticipants(context.Background(), eventID, &approvedStatus)
+	approvedList, _ := h.events.ListParticipants(ctx, eventID, &approvedStatus)
 	pendingStatus := database.StatusPending
-	pendingList, _ := h.events.ListParticipants(context.Background(), eventID, &pendingStatus)
+	pendingList, _ := h.events.ListParticipants(ctx, eventID, &pendingStatus)
 
 	emoji := EventTypeEmoji(event.EventType)
 	label := EventTypeLabel(event.EventType)
@@ -253,7 +306,7 @@ func (h *Handler) onManageEvent(c tele.Context) error {
 	if event.Description != nil {
 		desc = *event.Description
 	}
-	approved, _ := h.events.CountApproved(context.Background(), eventID)
+	approved, _ := h.events.CountApproved(ctx, eventID)
 
 	var sb strings.Builder
 	sb.WriteString(messages.EventCard(emoji, label, event.Title, desc, event.City, event.StartsAt, approved, event.MaxParticipants))
@@ -261,7 +314,7 @@ func (h *Handler) onManageEvent(c tele.Context) error {
 	if len(approvedList) > 0 {
 		sb.WriteString("\n\n\u2705 Участники:\n")
 		for _, p := range approvedList {
-			u, err := h.users.GetByTelegramID(context.Background(), p.TelegramID)
+			u, err := h.users.GetByTelegramID(ctx, p.TelegramID)
 			if err != nil {
 				continue
 			}
@@ -285,7 +338,7 @@ func (h *Handler) onManageEvent(c tele.Context) error {
 	var rows []tele.Row
 
 	for _, p := range approvedList {
-		u, err := h.users.GetByTelegramID(context.Background(), p.TelegramID)
+		u, err := h.users.GetByTelegramID(ctx, p.TelegramID)
 		if err != nil {
 			continue
 		}
@@ -301,11 +354,13 @@ func (h *Handler) onManageEvent(c tele.Context) error {
 	}
 
 	btnCancel := markup.Data("\U0001f6ab Отменить событие", "cn", eventID)
+	btnBack := markup.Data("◀️ Назад", "bk")
 	rows = append(rows, markup.Row(btnCancel))
+	rows = append(rows, markup.Row(btnBack))
 
 	markup.Inline(rows...)
 
-	return c.Send(sb.String(), markup)
+	return sb.String(), markup
 }
 
 func (h *Handler) notifyApproved(event *database.Event, telegramID int64) {
@@ -420,9 +475,10 @@ func (h *Handler) onViewJoinedEvent(c tele.Context) error {
 
 	markup := &tele.ReplyMarkup{}
 	btnLeave := markup.Data("❌ Покинуть событие", "le", eventID)
-	markup.Inline(markup.Row(btnLeave))
+	btnBack := markup.Data("◀️ Назад", "bk")
+	markup.Inline(markup.Row(btnLeave), markup.Row(btnBack))
 
-	return c.Send(text, markup)
+	return c.Edit(text, markup)
 }
 
 func (h *Handler) onLeaveEvent(c tele.Context) error {
@@ -455,8 +511,10 @@ func (h *Handler) onLeaveEvent(c tele.Context) error {
 		return c.Respond(&tele.CallbackResponse{Text: messages.GenericError})
 	}
 
-	_ = c.Respond(&tele.CallbackResponse{Text: messages.ParticipantLeft})
+	_ = c.Respond()
 	_ = c.Delete()
+
+	_ = c.Send(messages.ParticipantLeft)
 
 	// Notify host
 	name := c.Sender().FirstName

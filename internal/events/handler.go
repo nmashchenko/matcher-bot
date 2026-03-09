@@ -3,6 +3,7 @@ package events
 import (
 	"matcher-bot/internal/database"
 	"matcher-bot/internal/geocoding"
+	"matcher-bot/internal/messages"
 
 	tele "gopkg.in/telebot.v4"
 )
@@ -25,8 +26,8 @@ func NewHandler(users database.UserRepository, events database.EventRepository, 
 
 func (h *Handler) Register(b *tele.Bot) {
 	b.Handle("/create", h.cmdCreate)
-	b.Handle("/events", h.cmdBrowse)
-	b.Handle("/myevents", h.cmdMy)
+	b.Handle("/events", h.blockIfCreating(h.cmdBrowse))
+	b.Handle("/myevents", h.blockIfCreating(h.cmdMy))
 
 	// Event type select
 	b.Handle("\fet", h.onEventTypeSelect)
@@ -54,6 +55,19 @@ func (h *Handler) Register(b *tele.Bot) {
 	// View joined event / leave event
 	b.Handle("\fve", h.onViewJoinedEvent)
 	b.Handle("\fle", h.onLeaveEvent)
+
+	// Back to /myevents list
+	b.Handle("\fbk", h.onBackToMyEvents)
+}
+
+// blockIfCreating wraps a handler to block it while user is in event creation mode.
+func (h *Handler) blockIfCreating(next tele.HandlerFunc) tele.HandlerFunc {
+	return func(c tele.Context) error {
+		if h.IsCreating(c.Sender().ID) {
+			return c.Send(messages.CreateInProgress)
+		}
+		return next(c)
+	}
 }
 
 // IsCreating returns true if the user has an active create session.

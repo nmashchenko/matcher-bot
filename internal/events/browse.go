@@ -31,6 +31,12 @@ func (h *Handler) cmdBrowse(c tele.Context) error {
 }
 
 func (h *Handler) onBrowseNext(c tele.Context) error {
+	if eventID := c.Callback().Data; eventID != "" {
+		if err := h.events.MarkViewed(context.Background(), c.Sender().ID, eventID); err != nil {
+			slog.Error("browse next: mark viewed", "error", err)
+		}
+	}
+
 	user, err := h.users.GetByTelegramID(context.Background(), c.Sender().ID)
 	if err != nil {
 		return c.Respond(&tele.CallbackResponse{Text: messages.BrowseExpired})
@@ -52,6 +58,10 @@ func (h *Handler) onBrowseJoin(c tele.Context) error {
 	eventID := c.Callback().Data
 	if eventID == "" {
 		return c.Respond()
+	}
+
+	if err := h.events.MarkViewed(context.Background(), c.Sender().ID, eventID); err != nil {
+		slog.Error("browse join: mark viewed", "error", err)
 	}
 
 	event, err := h.events.GetByID(context.Background(), eventID)
@@ -116,10 +126,6 @@ func (h *Handler) showNextEvent(c tele.Context, city, state string, edit bool) e
 		return c.Send(messages.GenericError)
 	}
 
-	if err := h.events.MarkViewed(ctx, telegramID, event.ID); err != nil {
-		slog.Error("browse mark viewed", "error", err)
-	}
-
 	emoji := EventTypeEmoji(event.EventType)
 	label := EventTypeLabel(event.EventType)
 	desc := ""
@@ -131,7 +137,7 @@ func (h *Handler) showNextEvent(c tele.Context, city, state string, edit bool) e
 
 	markup := &tele.ReplyMarkup{}
 	btnJoin := markup.Data("\U0001f64b Хочу пойти", "bj", event.ID)
-	btnNext := markup.Data("\u25b6\ufe0f Дальше", "bn")
+	btnNext := markup.Data("\u25b6\ufe0f Дальше", "bn", event.ID)
 	markup.Inline(markup.Row(btnJoin, btnNext))
 
 	if edit {
