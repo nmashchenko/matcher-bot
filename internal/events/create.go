@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"matcher-bot/internal/database"
+	"matcher-bot/internal/geocoding"
 	"matcher-bot/internal/messages"
 	"matcher-bot/internal/ptr"
 
@@ -160,6 +161,17 @@ func (h *Handler) onStepTime(c tele.Context, sess *createSession, text string) e
 		return c.Send(messages.TimePast, cancelKeyboard())
 	}
 	sess.StartsAt = t
+
+	if sess.EventType == database.EventGaming {
+		sess.Lat = geocoding.DefaultLat
+		sess.Lon = geocoding.DefaultLon
+		sess.City = geocoding.DefaultCity
+		sess.State = geocoding.DefaultState
+		sess.Step = stepCapacity
+		_ = c.Send(messages.CreateGamingNotice, cancelKeyboard())
+		return c.Send(messages.CreateAskCapacity, cancelKeyboard())
+	}
+
 	sess.Step = stepLocation
 	return c.Send(messages.CreateAskLocation, cancelKeyboard())
 }
@@ -175,6 +187,11 @@ func (h *Handler) onStepCapacity(c tele.Context, sess *createSession, text strin
 	emoji := EventTypeEmoji(sess.EventType)
 	label := EventTypeLabel(sess.EventType)
 
+	city := sess.City
+	if sess.EventType == database.EventGaming {
+		city = "все города в USA"
+	}
+
 	markup := &tele.ReplyMarkup{}
 	btnOk := markup.Data("\u2705 Создать", "cc", "ok")
 	btnNo := markup.Data("\u274c Отмена", "cc", "no")
@@ -183,7 +200,7 @@ func (h *Handler) onStepCapacity(c tele.Context, sess *createSession, text strin
 	// Send a blank message to remove the reply keyboard, then show confirm with inline buttons.
 	_ = c.Send("\u2705 Отлично! Проверь данные:", removeKeyboard())
 	return c.Send(
-		messages.CreateConfirm(emoji, label, sess.Title, sess.Desc, sess.City, sess.StartsAt, sess.Capacity),
+		messages.CreateConfirm(emoji, label, sess.Title, sess.Desc, city, sess.StartsAt, sess.Capacity),
 		markup,
 	)
 }
@@ -253,8 +270,13 @@ func (h *Handler) onCreateConfirm(c tele.Context) error {
 		return c.Send(messages.GenericError)
 	}
 
+	city := sess.City
+	if sess.EventType == database.EventGaming {
+		city = "все города в USA"
+	}
+
 	createSessions.Delete(c.Sender().ID)
-	return c.Send(messages.CreateSuccess(sess.Title, sess.City, sess.StartsAt), removeKeyboard())
+	return c.Send(messages.CreateSuccess(sess.Title, city, sess.StartsAt), removeKeyboard())
 }
 
 // parseEventTime parses "DD.MM HH:MM" into a time.Time for the current year.
