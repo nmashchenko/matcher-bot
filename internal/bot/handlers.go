@@ -10,7 +10,7 @@ import (
 	"matcher-bot/internal/messages"
 	"matcher-bot/internal/onboarding"
 	"matcher-bot/internal/settings"
-	"matcher-bot/internal/util"
+	"matcher-bot/internal/ptr"
 	"matcher-bot/internal/verification"
 
 	tele "gopkg.in/telebot.v4"
@@ -45,9 +45,16 @@ func requireReady(userStore database.UserRepository) tele.MiddlewareFunc {
 func handleStart(userStore database.UserRepository, verifHandler *verification.Handler, obHandler *onboarding.Handler) tele.HandlerFunc {
 	return func(c tele.Context) error {
 		sender := c.Sender()
-		username := util.Str(sender.Username)
-		firstName := util.Str(sender.FirstName)
-		lastName := util.Str(sender.LastName)
+		username := ptr.Str(sender.Username)
+		firstName := ptr.Str(sender.FirstName)
+		lastName := ptr.Str(sender.LastName)
+
+		slog.Info("/start",
+			"telegram_id", sender.ID,
+			"username", sender.Username,
+			"first_name", sender.FirstName,
+			"last_name", sender.LastName,
+		)
 
 		user, err := userStore.FindOrCreate(context.Background(), sender.ID, username, firstName, lastName)
 		if err != nil {

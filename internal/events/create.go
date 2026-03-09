@@ -11,7 +11,7 @@ import (
 
 	"matcher-bot/internal/database"
 	"matcher-bot/internal/messages"
-	"matcher-bot/internal/util"
+	"matcher-bot/internal/ptr"
 
 	tele "gopkg.in/telebot.v4"
 )
@@ -238,7 +238,7 @@ func (h *Handler) onCreateConfirm(c tele.Context) error {
 	event := &database.Event{
 		HostTelegramID:  c.Sender().ID,
 		Title:           sess.Title,
-		Description:     util.Str(sess.Desc),
+		Description:     ptr.Str(sess.Desc),
 		EventType:       sess.EventType,
 		Latitude:        sess.Lat,
 		Longitude:       sess.Lon,

@@ -28,6 +28,10 @@ func (h *Handler) onApprove(c tele.Context) error {
 		return c.Respond(&tele.CallbackResponse{Text: messages.GenericError})
 	}
 
+	if event.HostTelegramID != c.Sender().ID {
+		return c.Respond(&tele.CallbackResponse{Text: messages.NotHost})
+	}
+
 	approved, err := h.events.CountApproved(context.Background(), eventID)
 	if err != nil {
 		slog.Error("approve: count", "error", err)
@@ -48,12 +52,20 @@ func (h *Handler) onApprove(c tele.Context) error {
 	// Confirm to host with participant name.
 	u, _ := h.users.GetByTelegramID(context.Background(), telegramID)
 	name := "Участник"
-	if u != nil && u.FirstName != nil {
-		name = *u.FirstName
+	username := ""
+	if u != nil {
+		if u.FirstName != nil {
+			name = *u.FirstName
+		}
+		if u.Username != nil {
+			username = *u.Username
+		}
 	}
-	_ = c.Send(messages.HostApprovedConfirm(name, event.Title))
+	_ = c.Send(messages.HostApprovedConfirm(name, username, event.Title))
 
 	h.notifyApproved(event, telegramID)
+
+	h.sendMyEvents(c)
 
 	return nil
 }
@@ -64,6 +76,16 @@ func (h *Handler) onReject(c tele.Context) error {
 		return c.Respond(&tele.CallbackResponse{Text: messages.GenericError})
 	}
 
+	event, err := h.events.GetByID(context.Background(), eventID)
+	if err != nil {
+		slog.Error("reject: get event", "error", err)
+		return c.Respond(&tele.CallbackResponse{Text: messages.GenericError})
+	}
+
+	if event.HostTelegramID != c.Sender().ID {
+		return c.Respond(&tele.CallbackResponse{Text: messages.NotHost})
+	}
+
 	if err := h.events.UpdateParticipantStatus(context.Background(), eventID, telegramID, database.StatusRejected); err != nil {
 		slog.Error("reject: update", "error", err)
 		return c.Respond(&tele.CallbackResponse{Text: messages.GenericError})
@@ -72,14 +94,12 @@ func (h *Handler) onReject(c tele.Context) error {
 	_ = c.Respond(&tele.CallbackResponse{Text: messages.Rejected})
 	_ = c.Delete()
 
-	event, err := h.events.GetByID(context.Background(), eventID)
-	if err != nil {
-		return nil
-	}
 	user := &tele.User{ID: telegramID}
 	if _, err := h.bot.Send(user, messages.ParticipantRejected(event.Title)); err != nil {
 		slog.Error("reject: notify", "error", err)
 	}
+
+	h.sendMyEvents(c)
 
 	return nil
 }
@@ -108,6 +128,8 @@ func (h *Handler) onCancelEvent(c tele.Context) error {
 	_ = c.Send(messages.EventCancelledConfirm(event.Title))
 
 	h.notifyEventCancelled(event)
+
+	h.sendMyEvents(c)
 
 	return nil
 }
@@ -150,6 +172,19 @@ func (h *Handler) onRemoveParticipant(c tele.Context) error {
 	}
 
 	return nil
+}
+
+// sendMyEvents sends the "my events" list as a new message.
+func (h *Handler) sendMyEvents(c tele.Context) {
+	text, markup, err := h.buildMyEventsList(c.Sender().ID)
+	if err != nil {
+		return
+	}
+	if markup != nil {
+		_ = c.Send(text, markup)
+	} else {
+		_ = c.Send(text)
+	}
 }
 
 func (h *Handler) cmdMy(c tele.Context) error {

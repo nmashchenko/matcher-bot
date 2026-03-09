@@ -102,6 +102,8 @@ func (h *Handler) onFilterSelect(c tele.Context) error {
 	if selected == "all" {
 		empty := ""
 		update.PreferredEventType = &empty
+	} else if !events.ValidEventType(database.EventType(selected)) {
+		return c.Respond(&tele.CallbackResponse{Text: messages.GenericError})
 	} else {
 		update.PreferredEventType = &selected
 	}

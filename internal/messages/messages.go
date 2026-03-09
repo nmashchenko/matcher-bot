@@ -206,7 +206,10 @@ func HostNotifyLeft(eventTitle, name string) string {
 const EventAlreadyStarted = "Событие уже началось, покинуть нельзя."
 const NotParticipant = "Ты не участник этого события."
 
-func HostApprovedConfirm(name, eventTitle string) string {
+func HostApprovedConfirm(name, username, eventTitle string) string {
+	if username != "" {
+		return fmt.Sprintf("✅ %s (@%s) принят на \"%s\".", name, username, eventTitle)
+	}
 	return fmt.Sprintf("✅ %s принят на \"%s\".", name, eventTitle)
 }
 

@@ -64,5 +64,14 @@ func (h *Handler) OnLocation(c tele.Context) error {
 		return nil
 	}
 
+	slog.Warn("verification rejected",
+		"telegram_id", c.Sender().ID,
+		"username", c.Sender().Username,
+		"first_name", c.Sender().FirstName,
+		"lat", loc.Lat,
+		"lng", loc.Lng,
+		"country", result.Country,
+	)
+
 	return c.Send(messages.NotInUSA)
 }

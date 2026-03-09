@@ -138,3 +138,168 @@ func TestParticipantApproved_NoUsername(t *testing.T) {
 		t.Errorf("ParticipantApproved no username should omit @: %q", got)
 	}
 }
+
+func TestParticipantApproved_NoParticipants(t *testing.T) {
+	got := ParticipantApproved("Party", "Host", "h", "NYC", nil)
+	if strings.Contains(got, "Участники") {
+		t.Errorf("ParticipantApproved with no participants should omit list: %q", got)
+	}
+}
+
+func TestAskAge(t *testing.T) {
+	got := AskAge("Boston", "MA")
+	if !strings.Contains(got, "Boston") || !strings.Contains(got, "MA") {
+		t.Errorf("AskAge missing city/state: %q", got)
+	}
+	if !strings.Contains(got, "лет") {
+		t.Errorf("AskAge missing age prompt: %q", got)
+	}
+}
+
+func TestAgeFromTelegram(t *testing.T) {
+	got := AgeFromTelegram(24, "NYC", "NY")
+	if !strings.Contains(got, "24") {
+		t.Errorf("AgeFromTelegram missing age: %q", got)
+	}
+	if !strings.Contains(got, "NYC") || !strings.Contains(got, "NY") {
+		t.Errorf("AgeFromTelegram missing city/state: %q", got)
+	}
+}
+
+func TestOnboardingComplete(t *testing.T) {
+	got := OnboardingComplete("Nikita", 24, "Boston", "MA")
+	if !strings.Contains(got, "Nikita") {
+		t.Errorf("OnboardingComplete missing name: %q", got)
+	}
+	if !strings.Contains(got, "24") {
+		t.Errorf("OnboardingComplete missing age: %q", got)
+	}
+	if !strings.Contains(got, "Boston") || !strings.Contains(got, "MA") {
+		t.Errorf("OnboardingComplete missing city/state: %q", got)
+	}
+	for _, cmd := range []string{"/events", "/create", "/myevents", "/settings"} {
+		if !strings.Contains(got, cmd) {
+			t.Errorf("OnboardingComplete missing command %s: %q", cmd, got)
+		}
+	}
+}
+
+func TestMainMenu(t *testing.T) {
+	got := MainMenu("LA", "CA")
+	if !strings.Contains(got, "LA") || !strings.Contains(got, "CA") {
+		t.Errorf("MainMenu missing city/state: %q", got)
+	}
+	for _, cmd := range []string{"/events", "/create", "/myevents", "/settings"} {
+		if !strings.Contains(got, cmd) {
+			t.Errorf("MainMenu missing command %s: %q", cmd, got)
+		}
+	}
+}
+
+func TestCreateSuccess(t *testing.T) {
+	ts := time.Date(2025, 7, 20, 14, 30, 0, 0, time.UTC)
+	got := CreateSuccess("Beach Party", "Miami", ts)
+	if !strings.Contains(got, "Beach Party") {
+		t.Errorf("CreateSuccess missing title: %q", got)
+	}
+	if !strings.Contains(got, "Miami") {
+		t.Errorf("CreateSuccess missing city: %q", got)
+	}
+	if !strings.Contains(got, "20.07 14:30") {
+		t.Errorf("CreateSuccess missing formatted time: %q", got)
+	}
+}
+
+func TestBrowseFilterAll(t *testing.T) {
+	got := BrowseFilterAll("Chicago")
+	if !strings.Contains(got, "Chicago") {
+		t.Errorf("BrowseFilterAll missing city: %q", got)
+	}
+	if !strings.Contains(got, "все типы") {
+		t.Errorf("BrowseFilterAll missing 'все типы': %q", got)
+	}
+}
+
+func TestParticipantRejected(t *testing.T) {
+	got := ParticipantRejected("Game Night")
+	if !strings.Contains(got, "Game Night") {
+		t.Errorf("ParticipantRejected missing title: %q", got)
+	}
+}
+
+func TestEventCancelled(t *testing.T) {
+	got := EventCancelled("Beach Party")
+	if !strings.Contains(got, "Beach Party") {
+		t.Errorf("EventCancelled missing title: %q", got)
+	}
+	if !strings.Contains(got, "отменено") {
+		t.Errorf("EventCancelled missing cancel text: %q", got)
+	}
+}
+
+func TestParticipantRemoved(t *testing.T) {
+	got := ParticipantRemoved("Concert")
+	if !strings.Contains(got, "Concert") {
+		t.Errorf("ParticipantRemoved missing title: %q", got)
+	}
+}
+
+func TestHostNotifyLeft(t *testing.T) {
+	got := HostNotifyLeft("Party", "Alice")
+	if !strings.Contains(got, "Party") {
+		t.Errorf("HostNotifyLeft missing title: %q", got)
+	}
+	if !strings.Contains(got, "Alice") {
+		t.Errorf("HostNotifyLeft missing name: %q", got)
+	}
+}
+
+func TestHostApprovedConfirm(t *testing.T) {
+	got := HostApprovedConfirm("Bob", "bob_tg", "Sports")
+	if !strings.Contains(got, "Bob") || !strings.Contains(got, "Sports") {
+		t.Errorf("HostApprovedConfirm missing name/title: %q", got)
+	}
+	if !strings.Contains(got, "@bob_tg") {
+		t.Errorf("HostApprovedConfirm missing username: %q", got)
+	}
+}
+
+func TestHostApprovedConfirm_NoUsername(t *testing.T) {
+	got := HostApprovedConfirm("Bob", "", "Sports")
+	if strings.Contains(got, "@") {
+		t.Errorf("HostApprovedConfirm with no username should omit @: %q", got)
+	}
+}
+
+func TestHostRemovedConfirm(t *testing.T) {
+	got := HostRemovedConfirm("Eve", "Hangout")
+	if !strings.Contains(got, "Eve") || !strings.Contains(got, "Hangout") {
+		t.Errorf("HostRemovedConfirm missing name/title: %q", got)
+	}
+}
+
+func TestEventCancelledConfirm(t *testing.T) {
+	got := EventCancelledConfirm("Date Night")
+	if !strings.Contains(got, "Date Night") {
+		t.Errorf("EventCancelledConfirm missing title: %q", got)
+	}
+	if !strings.Contains(got, "уведомлены") {
+		t.Errorf("EventCancelledConfirm missing notify text: %q", got)
+	}
+}
+
+func TestEventCard_NoDesc(t *testing.T) {
+	ts := time.Date(2025, 6, 1, 18, 30, 0, 0, time.UTC)
+	got := EventCard("⚽", "Спорт", "Football", "", "LA", ts, 3, 10)
+	if strings.Contains(got, "\U0001f4ac") {
+		t.Errorf("EventCard with empty desc should omit desc line: %q", got)
+	}
+}
+
+func TestEventCard_TimeFormat(t *testing.T) {
+	ts := time.Date(2025, 12, 31, 23, 59, 0, 0, time.UTC)
+	got := EventCard("🎉", "Party", "NYE", "", "NYC", ts, 0, 50)
+	if !strings.Contains(got, "31.12 23:59") {
+		t.Errorf("EventCard time format wrong: %q", got)
+	}
+}

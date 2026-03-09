@@ -12,6 +12,7 @@ type VerifyResult struct {
 	Verified bool
 	City     string
 	State    string
+	Country  string
 	Error    string // "geocoding_failed" or ""
 }
 
@@ -53,5 +54,5 @@ func (s *Service) VerifyByLocation(ctx context.Context, telegramID int64, lat, l
 	}
 
 	// Not in USA — user stays unverified, can retry
-	return &VerifyResult{Verified: false}, nil
+	return &VerifyResult{Verified: false, Country: geo.Country}, nil
 }

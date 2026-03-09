@@ -10,7 +10,7 @@ import (
 
 	"matcher-bot/internal/database"
 	"matcher-bot/internal/messages"
-	"matcher-bot/internal/util"
+	"matcher-bot/internal/ptr"
 
 	tele "gopkg.in/telebot.v4"
 )
@@ -50,7 +50,7 @@ func (h *Handler) StartOnboarding(c tele.Context) error {
 		slog.Error("onboarding fetch user", "error", err)
 		return c.Send(messages.RestartError)
 	}
-	city, geoState := util.Deref(user.City), util.Deref(user.State)
+	city, geoState := ptr.Deref(user.City), ptr.Deref(user.State)
 
 	save := &database.UserUpdateData{}
 
@@ -94,7 +94,7 @@ func (h *Handler) StartOnboarding(c tele.Context) error {
 }
 
 func (h *Handler) ResumeOnboarding(c tele.Context, user *database.User) error {
-	city, geoState := util.Deref(user.City), util.Deref(user.State)
+	city, geoState := ptr.Deref(user.City), ptr.Deref(user.State)
 	if user.Age == nil {
 		return c.Send(messages.AskAge(city, geoState))
 	}
@@ -134,7 +134,7 @@ func (h *Handler) onAge(c tele.Context) error {
 	if err != nil {
 		return c.Send(messages.RestartError)
 	}
-	city, geoState := util.Deref(user.City), util.Deref(user.State)
+	city, geoState := ptr.Deref(user.City), ptr.Deref(user.State)
 	name := c.Sender().FirstName
 
 	if err := c.Send(messages.OnboardingComplete(name, age, city, geoState)); err != nil {

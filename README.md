@@ -57,7 +57,7 @@ internal/
   messages/         — all user-facing strings (Russian)
   onboarding/       — age collection flow
   settings/         — user preference management
-  util/             — shared helpers (pointer utilities)
+  ptr/              — pointer helpers (Str, Deref)
   verification/     — location-based US verification
 migrations/         — versioned database migrations
 ```
