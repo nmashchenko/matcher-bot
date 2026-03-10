@@ -4,8 +4,6 @@ go 1.24.0
 
 require (
 	github.com/joho/godotenv v1.5.1
-	github.com/openai/openai-go v1.12.0
-	github.com/pgvector/pgvector-go v0.3.0
 	github.com/uptrace/bun v1.2.17
 	github.com/uptrace/bun/dialect/pgdialect v1.2.17
 	github.com/uptrace/bun/driver/pgdriver v1.2.17
@@ -16,10 +14,6 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect
-	github.com/tidwall/gjson v1.14.4 // indirect
-	github.com/tidwall/match v1.1.1 // indirect
-	github.com/tidwall/pretty v1.2.1 // indirect
-	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/tmthrgd/go-hex v0.0.0-20190904060850-447a3041c3bc // indirect
 	github.com/vmihailenco/msgpack/v5 v5.4.1 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect

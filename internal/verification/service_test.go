@@ -2,12 +2,21 @@ package verification
 
 import (
 	"context"
-	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"matcher-bot/internal/database"
 	"matcher-bot/internal/geocoding"
 )
+
+type mockWhitelistStore struct {
+	whitelisted bool
+}
+
+func (m *mockWhitelistStore) IsWhitelisted(_ context.Context, _ int64) (bool, error) {
+	return m.whitelisted, nil
+}
 
 type mockUserStore struct {
 	user *database.User
@@ -26,23 +35,26 @@ func (m *mockUserStore) Update(_ context.Context, _ int64, _ *database.UserUpdat
 	return m.err
 }
 
-type mockGeocoder struct {
-	result *geocoding.GeoResult
-	err    error
-}
-
-func (m *mockGeocoder) ReverseGeocode(_ context.Context, _, _ float64) (*geocoding.GeoResult, error) {
-	return m.result, m.err
+func newTestGeo(t *testing.T, handler http.HandlerFunc) *geocoding.Geocoder {
+	t.Helper()
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+	return geocoding.NewGeocoderWithURL(server.URL, server.Client())
 }
 
 func TestVerifyByLocation_USA(t *testing.T) {
-	svc := NewService(
-		&mockUserStore{},
-		&mockGeocoder{result: &geocoding.GeoResult{
-			Country: "United States", CountryCode: "us",
-			State: "California", City: "San Francisco", IsUSA: true,
-		}},
-	)
+	geo := newTestGeo(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{
+			"address": {
+				"country": "United States",
+				"country_code": "us",
+				"state": "California",
+				"city": "San Francisco"
+			}
+		}`))
+	})
+	svc := NewService(&mockUserStore{}, geo, &mockWhitelistStore{})
 
 	result, err := svc.VerifyByLocation(context.Background(), 12345, 37.77, -122.41)
 	if err != nil {
@@ -57,13 +69,18 @@ func TestVerifyByLocation_USA(t *testing.T) {
 }
 
 func TestVerifyByLocation_NonUSA(t *testing.T) {
-	svc := NewService(
-		&mockUserStore{},
-		&mockGeocoder{result: &geocoding.GeoResult{
-			Country: "Germany", CountryCode: "de",
-			State: "Berlin", City: "Berlin", IsUSA: false,
-		}},
-	)
+	geo := newTestGeo(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{
+			"address": {
+				"country": "Germany",
+				"country_code": "de",
+				"state": "Berlin",
+				"city": "Berlin"
+			}
+		}`))
+	})
+	svc := NewService(&mockUserStore{}, geo, &mockWhitelistStore{})
 
 	result, err := svc.VerifyByLocation(context.Background(), 12345, 52.52, 13.40)
 	if err != nil {
@@ -74,11 +91,33 @@ func TestVerifyByLocation_NonUSA(t *testing.T) {
 	}
 }
 
+func TestVerifyByLocation_Whitelisted(t *testing.T) {
+	// Geocoder returns non-USA, but user is whitelisted — should still verify.
+	geo := newTestGeo(t, func(w http.ResponseWriter, r *http.Request) {
+		t.Error("geocoder should not be called for whitelisted users")
+	})
+	svc := NewService(&mockUserStore{}, geo, &mockWhitelistStore{whitelisted: true})
+
+	result, err := svc.VerifyByLocation(context.Background(), 454332651, 55.75, 37.61)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !result.Verified {
+		t.Error("expected Verified = true for whitelisted user")
+	}
+	if result.State != "Hawaii" {
+		t.Errorf("State = %q; want Hawaii", result.State)
+	}
+	if result.City != "Kahaluu-Keauhou" {
+		t.Errorf("City = %q; want Kahaluu-Keauhou", result.City)
+	}
+}
+
 func TestVerifyByLocation_GeocodingFailed(t *testing.T) {
-	svc := NewService(
-		&mockUserStore{},
-		&mockGeocoder{err: fmt.Errorf("network error")},
-	)
+	geo := newTestGeo(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	})
+	svc := NewService(&mockUserStore{}, geo, &mockWhitelistStore{})
 
 	result, err := svc.VerifyByLocation(context.Background(), 12345, 0, 0)
 	if err != nil {

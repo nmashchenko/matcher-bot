@@ -41,6 +41,11 @@ func NewGeocoder() *Geocoder {
 	}
 }
 
+// NewGeocoderWithURL creates a Geocoder pointing at a custom URL (useful for tests).
+func NewGeocoderWithURL(baseURL string, client *http.Client) *Geocoder {
+	return &Geocoder{client: client, baseURL: baseURL}
+}
+
 // ReverseGeocode resolves lat/lon to a country, state, and city.
 func (g *Geocoder) ReverseGeocode(ctx context.Context, lat, lon float64) (*GeoResult, error) {
 	url := fmt.Sprintf("%s/reverse?format=json&lat=%f&lon=%f&addressdetails=1", g.baseURL, lat, lon)

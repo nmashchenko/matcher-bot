@@ -11,7 +11,7 @@ func newTestGeocoder(t *testing.T, handler http.HandlerFunc) *Geocoder {
 	t.Helper()
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
-	return &Geocoder{client: server.Client(), baseURL: server.URL}
+	return NewGeocoderWithURL(server.URL, server.Client())
 }
 
 func TestReverseGeocode_USA(t *testing.T) {

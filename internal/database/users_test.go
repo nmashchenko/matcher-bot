@@ -116,30 +116,6 @@ func TestUpdate_Age(t *testing.T) {
 	}
 }
 
-func TestUpdate_Bio(t *testing.T) {
-	db := setupTestDB(t)
-	users := NewUserStore(db)
-	ctx := context.Background()
-
-	db.NewDelete().TableExpr("users").Where("telegram_id = ?", 900011).Exec(ctx)
-	username := "biotest"
-	users.FindOrCreate(ctx, 900011, &username, nil, nil)
-
-	bio := "Привет, я люблю путешествовать и готовить."
-	err := users.Update(ctx, 900011, &UserUpdateData{Bio: &bio})
-	if err != nil {
-		t.Fatalf("Update bio: %v", err)
-	}
-
-	user, err := users.GetByTelegramID(ctx, 900011)
-	if err != nil {
-		t.Fatalf("GetByTelegramID: %v", err)
-	}
-	if user.Bio == nil || *user.Bio != bio {
-		t.Errorf("expected bio %q, got %v", bio, user.Bio)
-	}
-}
-
 func TestUpdate_UserState(t *testing.T) {
 	db := setupTestDB(t)
 	users := NewUserStore(db)

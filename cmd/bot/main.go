@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"log/slog"
 	"os"
@@ -26,18 +27,15 @@ func main() {
 		log.Fatal("TELEGRAM_BOT_TOKEN is not set")
 	}
 
-	openaiKey := os.Getenv("OPENAI_API_KEY")
-	if openaiKey == "" {
-		log.Fatal("OPENAI_API_KEY is not set")
-	}
-
 	db, err := database.New(dsn)
 	if err != nil {
 		log.Fatalf("database connection failed: %v", err)
 	}
 	defer db.Close()
 
-	b, err := bot.New(token, db, openaiKey)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	b, err := bot.New(token, db, ctx)
 	if err != nil {
 		log.Fatalf("bot creation failed: %v", err)
 	}
@@ -47,6 +45,7 @@ func main() {
 		signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 		<-sig
 		slog.Info("shutting down")
+		cancel()
 		b.Stop()
 	}()
 

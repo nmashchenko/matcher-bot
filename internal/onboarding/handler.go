@@ -10,31 +10,24 @@ import (
 
 	"matcher-bot/internal/database"
 	"matcher-bot/internal/messages"
+	"matcher-bot/internal/ptr"
 
-	pgvector "github.com/pgvector/pgvector-go"
 	tele "gopkg.in/telebot.v4"
 )
 
 // ErrNotHandled indicates the message was not consumed by this handler.
 var ErrNotHandled = errors.New("not handled")
 
-type embedder interface {
-	Embed(ctx context.Context, text string) (pgvector.Vector, error)
-}
-
-const cbGoal = "ob_goal"
-
 type Handler struct {
 	users database.UserRepository
-	emb   embedder
 }
 
-func NewHandler(users database.UserRepository, emb embedder) *Handler {
-	return &Handler{users: users, emb: emb}
+func NewHandler(users database.UserRepository) *Handler {
+	return &Handler{users: users}
 }
 
-func (h *Handler) Register(b *tele.Bot) {
-	b.Handle("\f"+cbGoal, h.onGoal)
+func (h *Handler) Register(_ *tele.Bot) {
+	// No callbacks to register after simplification.
 }
 
 func (h *Handler) StartOnboarding(c tele.Context) error {
@@ -57,7 +50,7 @@ func (h *Handler) StartOnboarding(c tele.Context) error {
 		slog.Error("onboarding fetch user", "error", err)
 		return c.Send(messages.RestartError)
 	}
-	city, geoState := derefStr(user.City), derefStr(user.State)
+	city, geoState := ptr.Deref(user.City), ptr.Deref(user.State)
 
 	save := &database.UserUpdateData{}
 
@@ -73,14 +66,20 @@ func (h *Handler) StartOnboarding(c tele.Context) error {
 		age := calcAge(chat.Birthdate)
 		if age >= 16 && age <= 99 {
 			save.Age = &age
+			state := database.StateReady
+			save.UserState = &state
 			if err := h.users.Update(context.Background(), c.Sender().ID, save); err != nil {
 				slog.Error("onboarding save", "error", err)
 				return c.Send(messages.RestartError)
 			}
-			return c.Send(
-				messages.AgeFromTelegram(age, city, geoState),
-				h.buildGoalKeyboard(),
-			)
+			name := c.Sender().FirstName
+			if err := c.Send(messages.OnboardingComplete(name, age, city, geoState)); err != nil {
+				return err
+			}
+			if c.Sender().Username == "" {
+				return c.Send(messages.UsernameWarning)
+			}
+			return nil
 		}
 	}
 
@@ -95,41 +94,24 @@ func (h *Handler) StartOnboarding(c tele.Context) error {
 }
 
 func (h *Handler) ResumeOnboarding(c tele.Context, user *database.User) error {
-	city, geoState := derefStr(user.City), derefStr(user.State)
-	switch {
-	case user.Age == nil:
+	city, geoState := ptr.Deref(user.City), ptr.Deref(user.State)
+	if user.Age == nil {
 		return c.Send(messages.AskAge(city, geoState))
-	case user.Goal == nil:
-		return c.Send(messages.AskGoal(*user.Age, city), h.buildGoalKeyboard())
-	case user.Bio == nil:
-		return c.Send(messages.AskBio(GoalLabel(*user.Goal)))
-	case user.LookingFor == nil:
-		return c.Send(messages.AskLookingFor(c.Sender().FirstName))
-	default:
-		return nil
 	}
+	// Age is set — mark as ready.
+	return nil
 }
 
 // OnText handles text input during onboarding.
-// Returns nil on success, or ErrNotHandled if the message was not consumed.
 func (h *Handler) OnText(c tele.Context) error {
 	user, err := h.users.GetByTelegramID(context.Background(), c.Sender().ID)
 	if err != nil {
 		return ErrNotHandled
 	}
-
-	switch {
-	case user.Age == nil:
+	if user.Age == nil {
 		return h.onAge(c)
-	case user.Goal == nil:
-		return ErrNotHandled // waiting for callback
-	case user.Bio == nil:
-		return h.onBio(c)
-	case user.LookingFor == nil:
-		return h.onLookingFor(c)
-	default:
-		return ErrNotHandled
 	}
+	return ErrNotHandled
 }
 
 func (h *Handler) onAge(c tele.Context) error {
@@ -139,7 +121,11 @@ func (h *Handler) onAge(c tele.Context) error {
 		return c.Send(messages.InvalidAge)
 	}
 
-	if err := h.users.Update(context.Background(), c.Sender().ID, &database.UserUpdateData{Age: &age}); err != nil {
+	state := database.StateReady
+	if err := h.users.Update(context.Background(), c.Sender().ID, &database.UserUpdateData{
+		Age:       &age,
+		UserState: &state,
+	}); err != nil {
 		slog.Error("onboarding save age", "error", err)
 		return c.Send(messages.RestartError)
 	}
@@ -148,140 +134,16 @@ func (h *Handler) onAge(c tele.Context) error {
 	if err != nil {
 		return c.Send(messages.RestartError)
 	}
-	city := derefStr(user.City)
-
-	return c.Send(messages.AskGoal(age, city), h.buildGoalKeyboard())
-}
-
-func (h *Handler) onGoal(c tele.Context) error {
-	user, err := h.users.GetByTelegramID(context.Background(), c.Sender().ID)
-	if err != nil {
-		slog.Error("onboarding get user", "error", err)
-		return c.Respond(&tele.CallbackResponse{Text: messages.CallbackError})
-	}
-	if user.Goal != nil {
-		return c.Respond(&tele.CallbackResponse{Text: messages.StepAlready})
-	}
-
-	goal := database.Goal(c.Callback().Data)
-	if !ValidGoal(goal) {
-		return c.Respond(&tele.CallbackResponse{Text: messages.UnknownGoal})
-	}
-	if err := h.users.Update(context.Background(), c.Sender().ID, &database.UserUpdateData{Goal: &goal}); err != nil {
-		slog.Error("onboarding save goal", "error", err)
-		return c.Send(messages.RestartError)
-	}
-
-	_ = c.Respond()
-	_ = c.Delete()
-	return c.Send(messages.AskBio(GoalLabel(goal)))
-}
-
-func (h *Handler) onBio(c tele.Context) error {
-	text := strings.TrimSpace(c.Text())
-	if len([]rune(text)) < 20 {
-		return c.Send(messages.TooShort)
-	}
-
-	vec, err := h.emb.Embed(context.Background(), text)
-	if err != nil {
-		slog.Error("onboarding embed bio", "error", err)
-		return c.Send(messages.GenericError)
-	}
-
-	if err := h.users.Update(context.Background(), c.Sender().ID, &database.UserUpdateData{
-		Bio:          &text,
-		BioEmbedding: &vec,
-	}); err != nil {
-		slog.Error("onboarding save bio", "error", err)
-		return c.Send(messages.RestartError)
-	}
-
-	return c.Send(messages.AskLookingFor(c.Sender().FirstName))
-}
-
-func (h *Handler) onLookingFor(c tele.Context) error {
-	text := strings.TrimSpace(c.Text())
-	if len([]rune(text)) < 20 {
-		return c.Send(messages.TooShort)
-	}
-
-	vec, err := h.emb.Embed(context.Background(), text)
-	if err != nil {
-		slog.Error("onboarding embed looking_for", "error", err)
-		return c.Send(messages.GenericError)
-	}
-
-	state := database.StateReady
-	if err := h.users.Update(context.Background(), c.Sender().ID, &database.UserUpdateData{
-		LookingFor:          &text,
-		LookingForEmbedding: &vec,
-		UserState:           &state,
-	}); err != nil {
-		slog.Error("onboarding save looking_for", "error", err)
-		return c.Send(messages.RestartError)
-	}
-
-	user, err := h.users.GetByTelegramID(context.Background(), c.Sender().ID)
-	if err != nil {
-		slog.Error("onboarding fetch completed user", "error", err)
-		return c.Send(messages.RestartError)
-	}
-
+	city, geoState := ptr.Deref(user.City), ptr.Deref(user.State)
 	name := c.Sender().FirstName
-	age := 0
-	if user.Age != nil {
-		age = *user.Age
-	}
-	goalLabel := ""
-	if user.Goal != nil {
-		goalLabel = GoalLabel(*user.Goal)
-	}
-	bio := ""
-	if user.Bio != nil {
-		bio = *user.Bio
-	}
-	lookingFor := ""
-	if user.LookingFor != nil {
-		lookingFor = *user.LookingFor
-	}
-	city, geoState := "", ""
-	if user.City != nil {
-		city = *user.City
-	}
-	if user.State != nil {
-		geoState = *user.State
-	}
 
-	caption := messages.ProfileComplete(name, age, goalLabel, bio, lookingFor, city, geoState)
-
-	if user.AvatarFileID != nil {
-		photo := &tele.Photo{
-			File:    tele.File{FileID: *user.AvatarFileID},
-			Caption: caption,
-		}
-		return c.Send(photo)
+	if err := c.Send(messages.OnboardingComplete(name, age, city, geoState)); err != nil {
+		return err
 	}
-
-	return c.Send(caption)
-}
-
-func (h *Handler) buildGoalKeyboard() *tele.ReplyMarkup {
-	markup := &tele.ReplyMarkup{}
-	var rows []tele.Row
-	for _, opt := range GoalOptions {
-		btn := markup.Data(opt.Label, cbGoal, string(opt.Key))
-		rows = append(rows, markup.Row(btn))
+	if c.Sender().Username == "" {
+		return c.Send(messages.UsernameWarning)
 	}
-	markup.Inline(rows...)
-	return markup
-}
-
-func derefStr(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
+	return nil
 }
 
 func calcAge(bd tele.Birthdate) int {
