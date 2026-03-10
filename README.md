@@ -28,12 +28,13 @@ make run                # start the bot
 
 ## How It Works
 
-1. **Verification** — user shares location once, Nominatim confirms they're in the US
+1. **Verification** — user shares location once, Nominatim confirms they're in the US (whitelisted users bypass geo-check)
 2. **Onboarding** — age collected (auto-detected from Telegram birthday when available), user state transitions `unverified` → `onboarding` → `ready`
-3. **Create events** — 6-step wizard: type, title, description, date/time, location, capacity
-4. **Browse events** — swipe through active events in your city (filterable by type), gaming events visible across all cities
+3. **Create events** — 6-step wizard: type, title, description, date/time, location, capacity + optional age restrictions (min/max)
+4. **Browse events** — swipe through active events in your city (filterable by type), gaming events visible across all cities, age-gated events hidden if you're outside the range
 5. **Join & approve** — send a join request, host gets notified and approves/rejects
 6. **Manage events** — view participants, remove people, cancel events; participants get real-time notifications
+7. **Settings** — choose a preferred event type filter to only see events you care about
 
 ## Bot Commands
 
@@ -43,7 +44,7 @@ make run                # start the bot
 | `/events` | Browse events nearby |
 | `/create` | Create a new event |
 | `/myevents` | View hosted & joined events |
-| `/settings` | Event type filter preference |
+| `/settings` | Set preferred event type filter |
 
 ## Project Structure
 
@@ -66,12 +67,11 @@ migrations/         — versioned database migrations
 
 | Type | Emoji | City-scoped |
 |------|-------|-------------|
-| Hangout | 🤙 | Yes |
-| Party | 🎉 | Yes |
-| Gaming | 🎮 | No (all cities) |
-| Date | 💘 | Yes |
-| Sports | ⚽ | Yes |
-| Concert | 🎵 | Yes |
+| Hangout (Тусовка) | 🤙 | Yes |
+| Gaming (Игры) | 🎮 | No (all cities) |
+| Sports (Спорт) | ⚽ | Yes |
+| Concert (Концерт / Шоу) | 🎵 | Yes |
+| Random (Рандом) | 🎲 | Yes |
 
 ## Testing
 
