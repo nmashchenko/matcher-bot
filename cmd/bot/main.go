@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"log/slog"
 	"os"
@@ -32,7 +33,9 @@ func main() {
 	}
 	defer db.Close()
 
-	b, err := bot.New(token, db)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	b, err := bot.New(token, db, ctx)
 	if err != nil {
 		log.Fatalf("bot creation failed: %v", err)
 	}
@@ -42,6 +45,7 @@ func main() {
 		signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 		<-sig
 		slog.Info("shutting down")
+		cancel()
 		b.Stop()
 	}()
 

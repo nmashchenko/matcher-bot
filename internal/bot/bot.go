@@ -17,7 +17,7 @@ import (
 	tele "gopkg.in/telebot.v4"
 )
 
-func New(token string, db *bun.DB) (*tele.Bot, error) {
+func New(token string, db *bun.DB, ctx context.Context) (*tele.Bot, error) {
 	b, err := tele.NewBot(tele.Settings{
 		Token:  token,
 		Poller: &tele.LongPoller{Timeout: 10 * time.Second},
@@ -63,27 +63,32 @@ func New(token string, db *bun.DB) (*tele.Bot, error) {
 		{Text: "events", Description: "Найти события рядом"},
 		{Text: "create", Description: "Создать событие"},
 		{Text: "myevents", Description: "Мои события"},
+		{Text: "settings", Description: "Настройки"},
 	})
 
 	// Background: expire events every 5 minutes.
-	startEventLifecycle(eventStore)
+	startEventLifecycle(ctx, eventStore)
 
 	return b, nil
 }
 
-func startEventLifecycle(eventStore database.EventRepository) {
+func startEventLifecycle(ctx context.Context, eventStore database.EventRepository) {
 	go func() {
 		ticker := time.NewTicker(5 * time.Minute)
 		defer ticker.Stop()
-		for range ticker.C {
-			ctx := context.Background()
-			n, err := eventStore.ExpireEvents(ctx)
-			if err != nil {
-				slog.Error("expire events", "error", err)
-				continue
-			}
-			if n > 0 {
-				slog.Info("expired events", "count", n)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				n, err := eventStore.ExpireEvents(ctx)
+				if err != nil {
+					slog.Error("expire events", "error", err)
+					continue
+				}
+				if n > 0 {
+					slog.Info("expired events", "count", n)
+				}
 			}
 		}
 	}()
