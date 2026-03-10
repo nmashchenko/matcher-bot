@@ -20,15 +20,15 @@ func TestSettingsText_NoFilter(t *testing.T) {
 
 func TestSettingsText_WithFilter(t *testing.T) {
 	h := &Handler{}
-	pref := "party"
+	pref := "gaming"
 	user := &database.User{PreferredEventType: &pref}
 
 	got := h.settingsText(user)
-	if !strings.Contains(got, "Вечеринка") {
-		t.Errorf("settingsText with party filter should show label: %q", got)
+	if !strings.Contains(got, "Игры") {
+		t.Errorf("settingsText with gaming filter should show label: %q", got)
 	}
-	if !strings.Contains(got, "🎉") {
-		t.Errorf("settingsText with party filter should show emoji: %q", got)
+	if !strings.Contains(got, "🎮") {
+		t.Errorf("settingsText with gaming filter should show emoji: %q", got)
 	}
 }
 
@@ -37,7 +37,7 @@ func TestSettingsText_AllTypes(t *testing.T) {
 	types := map[string]string{
 		"hangout": "Тусовка",
 		"gaming":  "Игры",
-		"date":    "Свидание",
+		"random":  "Рандом",
 		"sports":  "Спорт",
 		"concert": "Концерт / Шоу",
 	}

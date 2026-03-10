@@ -108,7 +108,7 @@ func handleText(userStore database.UserRepository, obHandler *onboarding.Handler
 			return nil
 		}
 
-		return c.Send(messages.UnknownCommand)
+		return c.Send(messages.UnknownCommand, &tele.ReplyMarkup{RemoveKeyboard: true})
 	}
 }
 

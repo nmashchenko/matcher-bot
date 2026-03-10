@@ -12,7 +12,7 @@ type EventRepository interface {
 	Create(ctx context.Context, event *Event) error
 	GetByID(ctx context.Context, id string) (*Event, error)
 	UpdateState(ctx context.Context, id string, state EventState) error
-	NextUnseen(ctx context.Context, city, state string, telegramID int64, eventType *EventType) (*Event, error)
+	NextUnseen(ctx context.Context, city, state string, telegramID int64, eventType *EventType, userAge *int) (*Event, error)
 	MarkViewed(ctx context.Context, telegramID int64, eventID string) error
 	ListByHost(ctx context.Context, hostTelegramID int64) ([]*Event, error)
 	ListJoined(ctx context.Context, telegramID int64) ([]*Event, error)
@@ -67,7 +67,8 @@ func (s *EventStore) UpdateState(ctx context.Context, id string, state EventStat
 // If eventType is nil: shows all types, filtered by same state, same-city priority.
 // If eventType is "gaming": global search (no city/state filter), filtered by type.
 // If eventType is anything else: filtered by same city and event type.
-func (s *EventStore) NextUnseen(ctx context.Context, city, state string, telegramID int64, eventType *EventType) (*Event, error) {
+// If userAge is set, events with age restrictions outside the user's age are excluded.
+func (s *EventStore) NextUnseen(ctx context.Context, city, state string, telegramID int64, eventType *EventType, userAge *int) (*Event, error) {
 	event := new(Event)
 	q := s.db.NewSelect().
 		Model(event).
@@ -80,6 +81,11 @@ func (s *EventStore) NextUnseen(ctx context.Context, city, state string, telegra
 				Column("event_id").
 				Where("telegram_id = ?", telegramID),
 		)
+
+	if userAge != nil {
+		q = q.Where("(e.min_age IS NULL OR e.min_age <= ?)", *userAge)
+		q = q.Where("(e.max_age IS NULL OR e.max_age >= ?)", *userAge)
+	}
 
 	if eventType != nil {
 		q = q.Where("e.event_type = ?", string(*eventType))

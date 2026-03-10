@@ -42,11 +42,10 @@ type EventType string
 
 const (
 	EventHangout EventType = "hangout"
-	EventParty   EventType = "party"
 	EventGaming  EventType = "gaming"
-	EventDate    EventType = "date"
 	EventSports  EventType = "sports"
 	EventConcert EventType = "concert"
+	EventRandom  EventType = "random"
 )
 
 func (e EventType) String() string { return string(e) }
@@ -75,6 +74,8 @@ type Event struct {
 	City            string     `bun:",notnull"`
 	State           string     `bun:",notnull"`
 	MaxParticipants int        `bun:",notnull,default:10"`
+	MinAge          *int       `bun:",nullzero"`
+	MaxAge          *int       `bun:",nullzero"`
 	StartsAt        time.Time  `bun:",notnull"`
 	CreatedAt       time.Time  `bun:",nullzero,notnull,default:current_timestamp"`
 	UpdatedAt       time.Time  `bun:",nullzero,notnull,default:current_timestamp"`

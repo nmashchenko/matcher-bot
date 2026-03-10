@@ -26,6 +26,7 @@ const (
 	stepTime
 	stepLocation
 	stepCapacity
+	stepAge
 	stepConfirm
 )
 
@@ -40,6 +41,8 @@ type createSession struct {
 	City      string
 	State     string
 	Capacity  int
+	MinAge    *int
+	MaxAge    *int
 }
 
 var createSessions sync.Map // map[int64]*createSession
@@ -128,6 +131,8 @@ func (h *Handler) handleCreateText(c tele.Context) error {
 		return h.onStepTime(c, sess, text)
 	case stepCapacity:
 		return h.onStepCapacity(c, sess, text)
+	case stepAge:
+		return h.onStepAge(c, sess, text)
 	default:
 		return nil
 	}
@@ -182,6 +187,28 @@ func (h *Handler) onStepCapacity(c tele.Context, sess *createSession, text strin
 		return c.Send(messages.InvalidNumber, cancelKeyboard())
 	}
 	sess.Capacity = n
+	sess.Step = stepAge
+	return c.Send(messages.CreateAskAge, cancelKeyboard())
+}
+
+func (h *Handler) onStepAge(c tele.Context, sess *createSession, text string) error {
+	if text == "-" {
+		sess.MinAge = nil
+		sess.MaxAge = nil
+	} else {
+		parts := strings.SplitN(text, "-", 2)
+		if len(parts) != 2 {
+			return c.Send(messages.InvalidAgeRange, cancelKeyboard())
+		}
+		minAge, err1 := strconv.Atoi(strings.TrimSpace(parts[0]))
+		maxAge, err2 := strconv.Atoi(strings.TrimSpace(parts[1]))
+		if err1 != nil || err2 != nil || minAge < 16 || maxAge > 99 || minAge >= maxAge {
+			return c.Send(messages.InvalidAgeRange, cancelKeyboard())
+		}
+		sess.MinAge = &minAge
+		sess.MaxAge = &maxAge
+	}
+
 	sess.Step = stepConfirm
 
 	emoji := EventTypeEmoji(sess.EventType)
@@ -192,15 +219,16 @@ func (h *Handler) onStepCapacity(c tele.Context, sess *createSession, text strin
 		city = "все города в USA"
 	}
 
+	ageRestriction := FormatAgeRestriction(sess.MinAge, sess.MaxAge)
+
 	markup := &tele.ReplyMarkup{}
 	btnOk := markup.Data("\u2705 Создать", "cc", "ok")
 	btnNo := markup.Data("\u274c Отмена", "cc", "no")
 	markup.Inline(markup.Row(btnOk, btnNo))
 
-	// Send a blank message to remove the reply keyboard, then show confirm with inline buttons.
 	_ = c.Send("\u2705 Отлично! Проверь данные:", removeKeyboard())
 	return c.Send(
-		messages.CreateConfirm(emoji, label, sess.Title, sess.Desc, city, sess.StartsAt, sess.Capacity),
+		messages.CreateConfirm(emoji, label, sess.Title, sess.Desc, city, sess.StartsAt, sess.Capacity, ageRestriction),
 		markup,
 	)
 }
@@ -262,6 +290,8 @@ func (h *Handler) onCreateConfirm(c tele.Context) error {
 		City:            sess.City,
 		State:           sess.State,
 		MaxParticipants: sess.Capacity,
+		MinAge:          sess.MinAge,
+		MaxAge:          sess.MaxAge,
 		StartsAt:        sess.StartsAt,
 	}
 	if err := h.events.Create(context.Background(), event); err != nil {
@@ -275,8 +305,9 @@ func (h *Handler) onCreateConfirm(c tele.Context) error {
 		city = "все города в USA"
 	}
 
+	ageRestriction := FormatAgeRestriction(sess.MinAge, sess.MaxAge)
 	createSessions.Delete(c.Sender().ID)
-	return c.Send(messages.CreateSuccess(sess.Title, city, sess.StartsAt), removeKeyboard())
+	return c.Send(messages.CreateSuccess(sess.Title, city, sess.StartsAt, ageRestriction), removeKeyboard())
 }
 
 // parseEventTime parses "DD.MM HH:MM" into a time.Time for the current year.

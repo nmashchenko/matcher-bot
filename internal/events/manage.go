@@ -344,7 +344,8 @@ func (h *Handler) buildManageCard(event *database.Event) (string, *tele.ReplyMar
 	approved, _ := h.events.CountApproved(ctx, eventID)
 
 	var sb strings.Builder
-	sb.WriteString(messages.EventCard(emoji, label, event.Title, desc, event.City, event.StartsAt, approved, event.MaxParticipants))
+	ageRestriction := FormatAgeRestriction(event.MinAge, event.MaxAge)
+	sb.WriteString(messages.EventCard(emoji, label, event.Title, desc, event.City, event.StartsAt, approved, event.MaxParticipants, ageRestriction))
 
 	if len(approvedList) > 0 {
 		sb.WriteString("\n\n\u2705 Участники:\n")
@@ -505,7 +506,8 @@ func (h *Handler) onViewJoinedEvent(c tele.Context) error {
 		statusText = "✅ Подтверждён"
 	}
 
-	card := messages.EventCard(emoji, label, event.Title, desc, event.City, event.StartsAt, approved, event.MaxParticipants)
+	ageRestr := FormatAgeRestriction(event.MinAge, event.MaxAge)
+	card := messages.EventCard(emoji, label, event.Title, desc, event.City, event.StartsAt, approved, event.MaxParticipants, ageRestr)
 	text := fmt.Sprintf("%s\n\nТвой статус: %s", card, statusText)
 
 	markup := &tele.ReplyMarkup{}

@@ -15,7 +15,7 @@ func TestVerified(t *testing.T) {
 
 func TestCreateConfirm(t *testing.T) {
 	ts := time.Date(2025, 3, 15, 20, 0, 0, 0, time.UTC)
-	got := CreateConfirm("🎉", "Вечеринка", "Test", "A description", "NYC", ts, 10)
+	got := CreateConfirm("🎉", "Вечеринка", "Test", "A description", "NYC", ts, 10, "")
 	if !strings.Contains(got, "Test") {
 		t.Errorf("CreateConfirm missing title: %q", got)
 	}
@@ -32,15 +32,23 @@ func TestCreateConfirm(t *testing.T) {
 
 func TestCreateConfirm_NoDesc(t *testing.T) {
 	ts := time.Date(2025, 3, 15, 20, 0, 0, 0, time.UTC)
-	got := CreateConfirm("🎉", "Вечеринка", "Test", "", "NYC", ts, 5)
+	got := CreateConfirm("🎉", "Вечеринка", "Test", "", "NYC", ts, 5, "")
 	if strings.Contains(got, "\U0001f4ac") {
 		t.Errorf("CreateConfirm with empty desc should omit desc line: %q", got)
 	}
 }
 
+func TestCreateConfirm_WithAge(t *testing.T) {
+	ts := time.Date(2025, 3, 15, 20, 0, 0, 0, time.UTC)
+	got := CreateConfirm("🎉", "Вечеринка", "Test", "", "NYC", ts, 5, "18-30")
+	if !strings.Contains(got, "18-30") {
+		t.Errorf("CreateConfirm with age should show age restriction: %q", got)
+	}
+}
+
 func TestEventCard(t *testing.T) {
 	ts := time.Date(2025, 6, 1, 18, 30, 0, 0, time.UTC)
-	got := EventCard("⚽", "Спорт", "Football", "Friendly match", "LA", ts, 3, 10)
+	got := EventCard("⚽", "Спорт", "Football", "Friendly match", "LA", ts, 3, 10, "")
 	if !strings.Contains(got, "Football") {
 		t.Errorf("EventCard missing title: %q", got)
 	}
@@ -49,6 +57,14 @@ func TestEventCard(t *testing.T) {
 	}
 	if !strings.Contains(got, "3/10") {
 		t.Errorf("EventCard missing participants: %q", got)
+	}
+}
+
+func TestEventCard_WithAge(t *testing.T) {
+	ts := time.Date(2025, 6, 1, 18, 30, 0, 0, time.UTC)
+	got := EventCard("⚽", "Спорт", "Football", "", "LA", ts, 3, 10, "21-35")
+	if !strings.Contains(got, "21-35") {
+		t.Errorf("EventCard with age should show age restriction: %q", got)
 	}
 }
 
@@ -198,7 +214,7 @@ func TestMainMenu(t *testing.T) {
 
 func TestCreateSuccess(t *testing.T) {
 	ts := time.Date(2025, 7, 20, 14, 30, 0, 0, time.UTC)
-	got := CreateSuccess("Beach Party", "Miami", ts)
+	got := CreateSuccess("Beach Party", "Miami", ts, "")
 	if !strings.Contains(got, "Beach Party") {
 		t.Errorf("CreateSuccess missing title: %q", got)
 	}
@@ -207,6 +223,14 @@ func TestCreateSuccess(t *testing.T) {
 	}
 	if !strings.Contains(got, "20.07 14:30") {
 		t.Errorf("CreateSuccess missing formatted time: %q", got)
+	}
+}
+
+func TestCreateSuccess_WithAge(t *testing.T) {
+	ts := time.Date(2025, 7, 20, 14, 30, 0, 0, time.UTC)
+	got := CreateSuccess("Beach Party", "Miami", ts, "18-30")
+	if !strings.Contains(got, "18-30") {
+		t.Errorf("CreateSuccess with age should show age restriction: %q", got)
 	}
 }
 
@@ -290,7 +314,7 @@ func TestEventCancelledConfirm(t *testing.T) {
 
 func TestEventCard_NoDesc(t *testing.T) {
 	ts := time.Date(2025, 6, 1, 18, 30, 0, 0, time.UTC)
-	got := EventCard("⚽", "Спорт", "Football", "", "LA", ts, 3, 10)
+	got := EventCard("⚽", "Спорт", "Football", "", "LA", ts, 3, 10, "")
 	if strings.Contains(got, "\U0001f4ac") {
 		t.Errorf("EventCard with empty desc should omit desc line: %q", got)
 	}
@@ -298,7 +322,7 @@ func TestEventCard_NoDesc(t *testing.T) {
 
 func TestEventCard_TimeFormat(t *testing.T) {
 	ts := time.Date(2025, 12, 31, 23, 59, 0, 0, time.UTC)
-	got := EventCard("🎉", "Party", "NYE", "", "NYC", ts, 0, 50)
+	got := EventCard("🎉", "Party", "NYE", "", "NYC", ts, 0, 50, "")
 	if !strings.Contains(got, "31.12 23:59") {
 		t.Errorf("EventCard time format wrong: %q", got)
 	}

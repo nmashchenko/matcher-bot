@@ -41,7 +41,7 @@ func (h *Handler) cmdBrowse(c tele.Context) error {
 		_ = c.Send(messages.BrowseFilterAll(city))
 	}
 
-	return h.showNextEvent(c, city, state, eventType, false)
+	return h.showNextEvent(c, city, state, eventType, user.Age, false)
 }
 
 func (h *Handler) onBrowseNext(c tele.Context) error {
@@ -71,7 +71,7 @@ func (h *Handler) onBrowseNext(c tele.Context) error {
 	}
 
 	_ = c.Respond()
-	return h.showNextEvent(c, city, state, eventType, true)
+	return h.showNextEvent(c, city, state, eventType, user.Age, true)
 }
 
 func (h *Handler) onBrowseJoin(c tele.Context) error {
@@ -134,14 +134,14 @@ func (h *Handler) onBrowseJoin(c tele.Context) error {
 		eventType = &et
 	}
 
-	return h.showNextEvent(c, city, state, eventType, true)
+	return h.showNextEvent(c, city, state, eventType, user.Age, true)
 }
 
-func (h *Handler) showNextEvent(c tele.Context, city, state string, eventType *database.EventType, edit bool) error {
+func (h *Handler) showNextEvent(c tele.Context, city, state string, eventType *database.EventType, userAge *int, edit bool) error {
 	ctx := context.Background()
 	telegramID := c.Sender().ID
 
-	event, err := h.events.NextUnseen(ctx, city, state, telegramID, eventType)
+	event, err := h.events.NextUnseen(ctx, city, state, telegramID, eventType, userAge)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			if edit {
@@ -160,7 +160,8 @@ func (h *Handler) showNextEvent(c tele.Context, city, state string, eventType *d
 		desc = *event.Description
 	}
 	approved, _ := h.events.CountApproved(ctx, event.ID)
-	card := messages.EventCard(emoji, label, event.Title, desc, event.City, event.StartsAt, approved, event.MaxParticipants)
+	ageRestriction := FormatAgeRestriction(event.MinAge, event.MaxAge)
+	card := messages.EventCard(emoji, label, event.Title, desc, event.City, event.StartsAt, approved, event.MaxParticipants, ageRestriction)
 
 	markup := &tele.ReplyMarkup{}
 	btnJoin := markup.Data("\U0001f64b Хочу пойти", "bj", event.ID)

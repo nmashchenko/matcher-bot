@@ -31,25 +31,31 @@ const (
 )
 
 type seedEvent struct {
-	Title       string
-	Description string
-	EventType   string
-	City        string
-	State       string
-	Lat         float64
-	Lon         float64
-	Capacity    int
+	Title        string
+	Description  string
+	EventType    string
+	City         string
+	State        string
+	Lat          float64
+	Lon          float64
+	Capacity     int
 	HoursFromNow int
+	MinAge       *int
+	MaxAge       *int
 }
+
+func intPtr(v int) *int { return &v }
 
 var seedEvents = []seedEvent{
 	{
-		Title:        "Вечеринка на крыше",
-		Description:  "Sunset party с видом на океан. BYOB!",
-		EventType:    "party",
+		Title:        "Рандомная встреча",
+		Description:  "Познакомимся и посмотрим, что из этого выйдет",
+		EventType:    "random",
 		City:         seedCity, State: seedState, Lat: seedLat, Lon: seedLon,
 		Capacity:     15,
 		HoursFromNow: 48,
+		MinAge:       intPtr(18),
+		MaxAge:       intPtr(30),
 	},
 	{
 		Title:        "Волейбол на пляже",
@@ -74,6 +80,8 @@ var seedEvents = []seedEvent{
 		City:         seedCity, State: seedState, Lat: seedLat, Lon: seedLon,
 		Capacity:     5,
 		HoursFromNow: 72,
+		MinAge:       intPtr(21),
+		MaxAge:       intPtr(35),
 	},
 	{
 		Title:        "Концерт в баре",
@@ -82,14 +90,6 @@ var seedEvents = []seedEvent{
 		City:         seedCity, State: seedState, Lat: seedLat, Lon: seedLon,
 		Capacity:     20,
 		HoursFromNow: 96,
-	},
-	{
-		Title:        "Свидание вслепую",
-		Description:  "Организую встречу — приходи один/одна",
-		EventType:    "date",
-		City:         seedCity, State: seedState, Lat: seedLat, Lon: seedLon,
-		Capacity:     2,
-		HoursFromNow: 36,
 	},
 }
 
@@ -148,13 +148,13 @@ func main() {
 
 		_, err := db.NewRaw(`
 			INSERT INTO events (host_telegram_id, title, description, event_type, event_state,
-				latitude, longitude, city, state, max_participants, starts_at,
+				latitude, longitude, city, state, max_participants, min_age, max_age, starts_at,
 				created_at, updated_at)
-			VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?)
+			VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`,
 			seedTelegramID, ev.Title, desc, ev.EventType,
 			ev.Lat, ev.Lon, ev.City, ev.State,
-			ev.Capacity, startsAt,
+			ev.Capacity, ev.MinAge, ev.MaxAge, startsAt,
 			now, now,
 		).Exec(ctx)
 		if err != nil {

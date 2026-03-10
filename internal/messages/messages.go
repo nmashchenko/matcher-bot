@@ -76,24 +76,34 @@ const (
 	CreateInProgress  = "Ты сейчас создаёшь событие. Заверши или отмени создание."
 	CreateCancelBtn    = "❌ Отменить создание"
 	CreateGamingNotice = "🎮 Игровые события видны всем пользователям по всей стране — геолокация не нужна."
+	CreateAskAge       = "Укажи возраст участников (например: 18-30) или отправь \"-\" чтобы пропустить:"
+	InvalidAgeRange    = "Неверный формат. Используй: 18-30, или отправь \"-\" чтобы пропустить."
 	InvalidTime       = "Неверный формат. Используй: ДД.ММ ЧЧ:ММ (например: 15.03 20:00)"
 	TimePast          = "Дата уже прошла. Укажи будущую дату."
 )
 
-func CreateSuccess(title, city string, startsAt time.Time) string {
+func CreateSuccess(title, city string, startsAt time.Time, ageRestriction string) string {
+	ageLine := ""
+	if ageRestriction != "" {
+		ageLine = fmt.Sprintf("\n\U0001f464 %s лет", ageRestriction)
+	}
 	return fmt.Sprintf(
 		"\u2705 Событие \"%s\" создано!\n"+
 			"\U0001f4cd %s\n"+
-			"\U0001f4c5 %s\n\n"+
+			"\U0001f4c5 %s%s\n\n"+
 			"Жди заявок — я уведомлю тебя о каждой.",
-		title, city, startsAt.Format("02.01 15:04"),
+		title, city, startsAt.Format("02.01 15:04"), ageLine,
 	)
 }
 
-func CreateConfirm(emoji, typeLabel, title, desc, city string, startsAt time.Time, capacity int) string {
+func CreateConfirm(emoji, typeLabel, title, desc, city string, startsAt time.Time, capacity int, ageRestriction string) string {
 	descLine := ""
 	if desc != "" {
 		descLine = fmt.Sprintf("\n\U0001f4ac %s", desc)
+	}
+	ageLine := ""
+	if ageRestriction != "" {
+		ageLine = fmt.Sprintf("\n\U0001f464 %s лет", ageRestriction)
 	}
 	return fmt.Sprintf(
 		"Всё верно?\n\n"+
@@ -101,9 +111,9 @@ func CreateConfirm(emoji, typeLabel, title, desc, city string, startsAt time.Tim
 			"\U0001f3af %s%s\n"+
 			"\U0001f4cd %s\n"+
 			"\U0001f4c5 %s\n"+
-			"\U0001f465 до %d чел.",
+			"\U0001f465 до %d чел.%s",
 		emoji, typeLabel, title, descLine, city,
-		startsAt.Format("02.01 15:04"), capacity,
+		startsAt.Format("02.01 15:04"), capacity, ageLine,
 	)
 }
 
@@ -140,19 +150,23 @@ const (
 	AlreadyRemoved       = "Участник уже убран."
 )
 
-func EventCard(emoji, typeLabel, title, desc, city string, startsAt time.Time, approved, max int) string {
+func EventCard(emoji, typeLabel, title, desc, city string, startsAt time.Time, approved, max int, ageRestriction string) string {
 	descLine := ""
 	if desc != "" {
 		descLine = fmt.Sprintf("\n\U0001f4ac %s", desc)
+	}
+	ageLine := ""
+	if ageRestriction != "" {
+		ageLine = fmt.Sprintf("\n\U0001f464 %s лет", ageRestriction)
 	}
 	return fmt.Sprintf(
 		"%s %s\n"+
 			"\U0001f3af %s%s\n"+
 			"\U0001f4cd %s\n"+
 			"\U0001f4c5 %s\n"+
-			"\U0001f465 %d/%d",
+			"\U0001f465 %d/%d%s",
 		emoji, typeLabel, title, descLine, city,
-		startsAt.Format("02.01 15:04"), approved, max,
+		startsAt.Format("02.01 15:04"), approved, max, ageLine,
 	)
 }
 
