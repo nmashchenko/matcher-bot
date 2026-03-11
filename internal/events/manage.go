@@ -195,7 +195,7 @@ func (h *Handler) cmdMy(c tele.Context) error {
 	if markup != nil {
 		return c.Send(text, markup)
 	}
-	return c.Send(text)
+	return c.Send(text, &tele.ReplyMarkup{RemoveKeyboard: true})
 }
 
 func (h *Handler) onBackToMyEvents(c tele.Context) error {

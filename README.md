@@ -36,6 +36,13 @@ make run                # start the bot
 6. **Manage events** — view participants, remove people, cancel events; participants get real-time notifications
 7. **Settings** — choose a preferred event type filter to only see events you care about
 
+### Privacy & Location
+
+- **Your precise location is not stored.** It is used only once during verification to confirm you are in the United States. Coordinates are reverse-geocoded on the fly to determine your city and state, and are not persisted.
+- **Only your city and state are saved** — solely to match you with nearby events. No precise GPS data is retained.
+- **Age** is collected during onboarding solely for age-gated event filtering. It is not displayed to other users.
+- **No data is sold or shared externally.** All data stays within the bot's database and is used only to power event matching.
+
 ## Bot Commands
 
 | Command | Description |

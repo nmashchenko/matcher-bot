@@ -33,12 +33,13 @@ func (h *Handler) cmdBrowse(c tele.Context) error {
 		eventType = &et
 	}
 
+	removeKb := &tele.ReplyMarkup{RemoveKeyboard: true}
 	if eventType != nil {
 		emoji := EventTypeEmoji(*eventType)
 		label := EventTypeLabel(*eventType)
-		_ = c.Send(messages.BrowseFilterNotice(emoji, label, city, *eventType == database.EventGaming))
+		_ = c.Send(messages.BrowseFilterNotice(emoji, label, city, *eventType == database.EventGaming), removeKb)
 	} else {
-		_ = c.Send(messages.BrowseFilterAll(city))
+		_ = c.Send(messages.BrowseFilterAll(city), removeKb)
 	}
 
 	return h.showNextEvent(c, city, state, eventType, user.Age, false)
